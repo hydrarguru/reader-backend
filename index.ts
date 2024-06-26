@@ -5,7 +5,7 @@ import { UserRouter } from "./routes/User"
 import { PostRouter } from "./routes/Post";
 import { CommunityRouter } from "./routes/Community";
 
-const shouldCreateTables = false;
+const shouldCreateTables = true;
 const port = 8080;
 const corsConfig = cors({ origin: "*" });
 const app = express();
