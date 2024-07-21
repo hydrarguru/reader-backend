@@ -10,7 +10,8 @@
   },
   "scripts": {
     "dev": "bun index.ts",
-    "watch": "bun --watch index.ts"
+    "watch": "bun --watch index.ts",
+    "build": "bun build index.ts --outdir ./dist"
   },
   "dependencies": {
     "@types/cors": "^2.8.17",
@@ -19,6 +20,7 @@
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "mysql2": "^3.9.8",
+    "pg-hstore": "^2.3.4",
     "sequelize": "^6.37.3"
   }
 }
