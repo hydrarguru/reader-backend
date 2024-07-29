@@ -1,9 +1,9 @@
 import express from "express";
 import cors from "cors";
-import { generateTables } from "./db";
-import { UserRouter } from "./routes/User"
-import { PostRouter } from "./routes/Post";
-import { CommunityRouter } from "./routes/Community";
+import { generateTables } from "./src/db";
+import { UserRouter } from "./src/routes/User"
+import { PostRouter } from "./src/routes/Post";
+import { CommunityRouter } from "./src/routes/Community";
 
 const shouldCreateTables = true;
 const port = 8080;
