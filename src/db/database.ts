@@ -1,10 +1,10 @@
 import { Sequelize, QueryTypes } from "sequelize";
-import { usersTable } from "./models/User";
-import { postsTable } from "./models/Post";
-import { communitiesTable } from "./models/Community";
-import type { User } from './types/UserType';
-import type { Post } from './types/PostType';
-import type { Community } from './types/CommunityType';
+import { usersTable } from "../models/User";
+import { postsTable } from "../models/Post";
+import { communitiesTable } from "../models/Community";
+import type { User } from '../types/UserType';
+import type { Post } from '../types/PostType';
+import type { Community } from '../types/CommunityType';
 
 const databaseSchema = [
     usersTable,

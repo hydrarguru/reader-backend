@@ -1,5 +1,5 @@
 import type { User } from '../types/UserType'
-import { insertOne, checkForDuplicate, deleteOne, updateOne, checkIfExists } from '../db'
+import { insertOne, checkForDuplicate, deleteOne, updateOne, checkIfExists } from '../db/database'
 
 export async function createUser(newUser: User) {
     if(await checkForDuplicate('Users', 'username', newUser.username)) {

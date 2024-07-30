@@ -1,5 +1,5 @@
 import express from "express";
-import { getAll, getOne } from "../db";
+import { getAll, getOne } from "../db/database";
 import { validateCommunityName } from "../util/validate";
 import type { Community } from "../types/CommunityType";
 import { createCommunity } from "../functions/communityFunctions";

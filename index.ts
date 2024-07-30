@@ -1,6 +1,6 @@
 import express from "express";
 import cors from "cors";
-import { generateTables } from "./src/db";
+import { generateTables } from "./src/db/database";
 import { UserRouter } from "./src/routes/User"
 import { PostRouter } from "./src/routes/Post";
 import { CommunityRouter } from "./src/routes/Community";

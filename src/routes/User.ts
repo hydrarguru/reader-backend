@@ -1,6 +1,6 @@
 import express from "express";
 import { validateUUID } from "../util/validate";
-import { getAll, getOne, insertOne } from "../db";
+import { getAll, getOne, insertOne } from "../db/database";
 import type { User } from "../types/UserType";
 export const UserRouter = express.Router();
 

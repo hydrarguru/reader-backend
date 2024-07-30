@@ -1,5 +1,5 @@
 import type { Community } from '../types/CommunityType'
-import { insertOne, checkForDuplicate, deleteOne } from '../db'
+import { insertOne, checkForDuplicate, deleteOne } from '../db/database'
 
 export async function createCommunity(newCommunity: Community): Promise<boolean> {
     if (await checkForDuplicate('Communities', 'community_name', newCommunity.community_name)) {
