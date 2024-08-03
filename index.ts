@@ -26,7 +26,7 @@ else {
 }
 
 app.get("/", (req, res) => {
-  res.send("Hello, World!");
+  res.send('<h1>Reader Backend API</h1>');
 });
 
 app.listen(port, () => {
