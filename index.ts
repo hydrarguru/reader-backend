@@ -5,7 +5,7 @@ import { UserRouter } from "./src/routes/User"
 import { PostRouter } from "./src/routes/Post";
 import { CommunityRouter } from "./src/routes/Community";
 
-const shouldCreateTables = true;
+const shouldGenerateTables = false;
 const port = 8080;
 const corsConfig = cors({ origin: "*" });
 const app = express();
@@ -17,7 +17,7 @@ app.use(UserRouter);
 app.use(CommunityRouter);
 app.use(PostRouter);
 
-if (shouldCreateTables) {
+if (shouldGenerateTables) {
   await generateTables();
   console.info("Tables generated.");
 }
