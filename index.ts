@@ -5,10 +5,11 @@ import { UserRouter } from "./src/routes/User"
 import { PostRouter } from "./src/routes/Post";
 import { CommunityRouter } from "./src/routes/Community";
 
-const shouldCreateTables = true;
 const port = process.env.PORT || 8080;
+const shouldGenerateTables = false;
 const corsConfig = cors({ origin: "*" });
 const app = express();
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(corsConfig)
@@ -17,7 +18,7 @@ app.use(UserRouter);
 app.use(CommunityRouter);
 app.use(PostRouter);
 
-if (shouldCreateTables) {
+if (shouldGenerateTables) {
   await generateTables();
   console.info("Tables generated.");
 }
@@ -26,7 +27,7 @@ else {
 }
 
 app.get("/", (req, res) => {
-  res.send("Hello, World!");
+  res.send('<h1>Reader Backend API</h1>');
 });
 
 app.listen(port, () => {
