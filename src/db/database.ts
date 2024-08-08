@@ -13,7 +13,7 @@ const databaseSchema = [
 ];
 
 async function addForeignKey(targetTable: string, targetColumn: string, referenceTable: string, referenceColumn: string): Promise<void> {
-    Client.query(`ALTER TABLE ${targetTable} ADD FOREIGN KEY (${targetColumn}) REFERENCES ${referenceTable}(${referenceColumn})`);    
+    await Client.query(`ALTER TABLE ${targetTable} ADD FOREIGN KEY (${targetColumn}) REFERENCES ${referenceTable}(${referenceColumn})`);
 }
 
 export const Client = new Sequelize({
@@ -61,7 +61,6 @@ export async function checkIfExists(table: string, column: string, value: string
 
 export async function getAll(table: string) {
     const [results] = await Client.query(`SELECT * FROM ${table} LIMIT 100`);
-    console.log('Results: ' + JSON.stringify(results));
     return results;
 }
 
@@ -71,16 +70,7 @@ export async function deleteOne(table: string, column: string, value: string | n
     });
 };
 
-/**
- * Updates a single row in the specified table with the given column value.
- * 
- * @param table - The name of the table to update.
- * @param tableIdColumnName - The name of the column that represents the table's ID.
- * @param tableIdValue - The value of the table's ID.
- * @param columnToUpdate - The name of the column to update.
- * @param updatedColumnValue - The new value for the column to be updated.
- * @returns A promise that resolves with void when the update is complete.
- */
+
 export async function updateOne(table: string, tableIdColumnName: string, tableIdValue: string, columnToUpdate: string, updatedColumnValue: string | number): Promise<void> {
     if(await checkIfExists(table, tableIdColumnName, tableIdValue)) {
         await Client.query(`UPDATE ${table} SET ${columnToUpdate} = :newValue WHERE ${tableIdColumnName} = :targetId`, {
@@ -98,8 +88,6 @@ export async function getOne(table: string, column: string, value: string | numb
         type: QueryTypes.SELECT,
         replacements: { value: value }
     });
-    console.log('Metadata: ' + metadata);
-    console.log('Results: ' + JSON.stringify(results));
     if (results === undefined || results === null) {
         return null;
     }
