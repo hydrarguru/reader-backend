@@ -6,7 +6,7 @@ import { PostRouter } from "./src/routes/Post";
 import { CommunityRouter } from "./src/routes/Community";
 
 const shouldCreateTables = true;
-const port = 8080;
+const port = process.env.PORT || 8080;
 const corsConfig = cors({ origin: "*" });
 const app = express();
 app.use(express.json());
