@@ -6,11 +6,42 @@ import { createCommunity } from "../functions/communityFunctions";
 
 export const CommunityRouter = express.Router();
 
+/**
+ * @openapi
+ * /community:
+ *   get:
+ *     tags: [Community]
+ *     description: Get all communities
+ *     responses:
+ *       200:
+ *         description: Returns all communities
+ */
 CommunityRouter.get("/community", async (req, res) => {
     const communities = await getAll("Communities");
     res.send(communities);
 });
-  
+
+/**
+ * @openapi
+ * /community/{name}:
+ *   get:
+ *     tags: [Community]
+ *     description: Get a community by name
+ *     parameters:
+ *       - in: path
+ *         name: name
+ *         required: true
+ *         description: Name of the community
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Returns the community
+ *       400:
+ *         description: Invalid community name
+ *       404:
+ *         description: Community not found
+ */
 CommunityRouter.get("/community/:name", async (req, res) => {
     const name = req.params.name;
     if (!validateCommunityName(name)) {
@@ -29,6 +60,29 @@ CommunityRouter.get("/community/:name", async (req, res) => {
     }
 });
 
+/**
+ * @openapi
+ * /community/create:
+ *   post:
+ *     tags: [Community]
+ *     description: Create a community
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               community_name:
+ *                 type: string
+ *               community_desc:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Community created
+ *       400:
+ *         description: Community name not provided
+ */
 CommunityRouter.post("/community/create", async (req, res) => {
     const request = req.body as Community;
     if (request.community_name === undefined || request.community_name === "") {
