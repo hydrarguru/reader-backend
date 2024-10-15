@@ -10,7 +10,9 @@
   },
   "scripts": {
     "dev": "bun --hot index.ts",
-    "build": "bun build index.ts --outdir ./dist"
+    "build": "bun build index.ts --outdir dist",
+    "deploy": "bun install",
+    "start": "bun run index.ts"
   },
   "dependencies": {
     "@types/cors": "^2.8.17",
