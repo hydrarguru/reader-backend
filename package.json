@@ -11,6 +11,7 @@
   "scripts": {
     "dev": "bun --hot index.ts",
     "build": "bun build index.ts --outdir dist",
+    "postinstall": "bun run index.ts",
     "deploy": "bun install",
     "start": "bun run index.ts"
   },
