@@ -16,7 +16,5 @@ BaseRouter.get("/health", (req, res) => {
 });
 
 BaseRouter.get("/", (req, res) => {
-    const request = req;
-    console.log (request);
     res.redirect("/api-docs");
 });
