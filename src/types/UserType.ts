@@ -6,3 +6,5 @@ export type User = {
     created_at?: string;
     modified_at?: string;
 };
+
+export type OmittedUser = Omit<User, 'email' | 'password' | 'created_at' | 'modified_at'>;
