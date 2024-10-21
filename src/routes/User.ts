@@ -1,7 +1,8 @@
 import express from "express";
 import { validateUUID } from "../util/validate";
-import { getAll, getOne, insertOne } from "../db/database";
-import type { OmittedUser, User } from "../types/UserType";
+import { insertOne } from "../db/database";
+import type { User } from "../types/UserType";
+import { getAllUsers, getUser } from "../functions/userFunctions";
 export const UserRouter = express.Router();
 
 /**
@@ -15,10 +16,8 @@ export const UserRouter = express.Router();
  *         description: Returns all users.
  */
 UserRouter.get("/users", async (req, res) => {
-    //TODO: move this a separate function.
-    const users: User[] = await getAll("Users") as User[];
-    const omittedUsers: OmittedUser[] = users.map(({ email, password, created_at, modified_at, ...user }) => user);
-    res.send(omittedUsers);
+    const users = await getAllUsers();
+    res.send(users);
 });
 
 
@@ -39,18 +38,13 @@ UserRouter.get("/users/:id", async (req, res) => {
     }
     else {
       const id = req.params.id;
-      const user: User = await getOne("Users", "user_id", id) as User;
+      const user = await getUser(id);
       if(user === null) {
         res.status(404).send("User not found.");
         return;
       }
       else {
-        //TODO: move this a separate function.
-        const omittedUser: OmittedUser = {
-          username: user.username,
-          user_id: user.user_id
-        }
-        res.send(omittedUser);
+        res.send(user);
       }
     }
 });
