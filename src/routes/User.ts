@@ -1,7 +1,8 @@
 import express from "express";
 import { validateUUID } from "../util/validate";
-import { getAll, getOne, insertOne } from "../db/database";
+import { insertOne } from "../db/database";
 import type { User } from "../types/UserType";
+import { getAllUsers, getUser } from "../functions/userFunctions";
 export const UserRouter = express.Router();
 
 /**
@@ -15,7 +16,7 @@ export const UserRouter = express.Router();
  *         description: Returns all users.
  */
 UserRouter.get("/users", async (req, res) => {
-    const users = await getAll("Users");
+    const users = await getAllUsers();
     res.send(users);
 });
 
@@ -37,7 +38,7 @@ UserRouter.get("/users/:id", async (req, res) => {
     }
     else {
       const id = req.params.id;
-      const user = await getOne("Users", "user_id", id);
+      const user = await getUser(id);
       if(user === null) {
         res.status(404).send("User not found.");
         return;

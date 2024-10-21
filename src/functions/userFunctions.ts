@@ -1,5 +1,5 @@
-import type { User } from '../types/UserType'
-import { insertOne, checkForDuplicate, deleteOne, updateOne, checkIfExists } from '../db/database'
+import type { OmittedUser, User } from '../types/UserType'
+import { insertOne, checkForDuplicate, deleteOne, updateOne, checkIfExists, getOne, getAll } from '../db/database'
 
 export async function createUser(newUser: User) {
     if(await checkForDuplicate('Users', 'username', newUser.username)) {
@@ -13,6 +13,23 @@ export async function createUser(newUser: User) {
         console.log('User created');
         console.table(newUser);
     }
+};
+
+export async function getUser(userId: string): Promise<OmittedUser | null> {
+    if(await checkIfExists('Users', 'user_id', userId)) {
+        const user = await getOne('Users', 'user_id', userId) as User;
+        const { email, password, created_at, modified_at, ...omittedUser } = user;
+        return omittedUser;
+    }
+    else {
+        console.error(`User with id: ${userId} does not exist.`);
+        return null;
+    }
+};
+
+export async function getAllUsers(): Promise<OmittedUser[]> {
+    const users = await getAll('Users') as User[];
+    return users.map(({ email, password, created_at, modified_at, ...user }) => user);
 };
 
 export async function editUser(userId: string, editedUser: User) {
