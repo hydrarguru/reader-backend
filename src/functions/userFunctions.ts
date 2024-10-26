@@ -1,5 +1,5 @@
-import type { OmittedUser, User } from '../types/UserType'
-import { insertOne, checkForDuplicate, deleteOne, updateOne, checkIfExists, getOne, getAll } from '../db/database'
+import type { OmittedUser, User } from '../types/UserType.js'
+import { insertOne, checkForDuplicate, deleteOne, updateOne, checkIfExists, getOne, getAll } from '../db/database.js'
 
 export async function createUser(newUser: User) {
     if(await checkForDuplicate('Users', 'username', newUser.username)) {

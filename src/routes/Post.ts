@@ -1,8 +1,8 @@
 import express from "express";
-import { getAll, getOne, insertOne } from "../db/database";
-import { validateUUID, validateScore } from "../util/validate";
-import type { Post } from "../types/PostType";
-import { setPostScore } from "../functions/postFunctions";
+import { getAll, getOne, insertOne } from "../db/database.js";
+import { validateUUID, validateScore } from "../util/validate.js";
+import type { Post } from "../types/PostType.js";
+import { setPostScore } from "../functions/postFunctions.js";
 
 export const PostRouter = express.Router();
 

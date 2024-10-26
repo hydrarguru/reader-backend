@@ -1,10 +1,19 @@
 import { Sequelize, QueryTypes } from "sequelize";
-import { usersTable } from "../models/User";
-import { postsTable } from "../models/Post";
-import { communitiesTable } from "../models/Community";
-import type { User } from '../types/UserType';
-import type { Post } from '../types/PostType';
-import type { Community } from '../types/CommunityType';
+import { usersTable } from "../models/User.js";
+import { postsTable } from "../models/Post.js";
+import { communitiesTable } from "../models/Community.js";
+import type { User } from '../types/UserType.js';
+import type { Post } from '../types/PostType.js';
+import type { Community } from '../types/CommunityType.js';
+
+import dotenv from "dotenv";
+dotenv.config();
+
+const DB_HOST = process.env.DB_HOST || 'localhost';
+const DB_NAME = process.env.DB_NAME || 'fullstack';
+const DB_USER = process.env.DB_USER || 'root';
+const DB_PASSWORD = process.env.DB_PASSWORD || 'password';
+const DB_PORT = process.env.DB_PORT || '3306';
 
 const databaseSchema = [
     usersTable,
@@ -18,12 +27,23 @@ async function addForeignKey(targetTable: string, targetColumn: string, referenc
 
 export const Client = new Sequelize({
     dialect: "mysql",
-    host: process.env.DB_HOST || 'localhost',
-    database: process.env.DB_NAME || 'fullstack',
-    username: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || 'password',
-    logging: console.log
+    host: DB_HOST,
+    database: DB_NAME,
+    username: DB_USER,
+    password: DB_PASSWORD,
+    port: parseInt(DB_PORT),
+    logging: false
 });
+
+export async function checkConnection() {
+    try {
+        await Client.authenticate();
+        console.log('Connection has been established successfully.');
+    }
+    catch (error) {
+        console.error('Unable to connect to the database:', error);
+    }
+}
 
 export async function generateTables() {
     for (const table of databaseSchema) {
