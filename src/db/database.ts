@@ -11,9 +11,9 @@ dotenv.config();
 
 const DB_HOST = process.env.DB_HOST || 'localhost';
 const DB_NAME = process.env.DB_NAME || 'fullstack';
-const DB_USER = process.env.DB_USER
-const DB_PASSWORD = process.env.DB_PASSWORD
-const port = process.env.SERVER_PORT || 10000;
+const DB_USER = process.env.DB_USER || 'root';
+const DB_PASSWORD = process.env.DB_PASSWORD || 'password';
+const DB_PORT = process.env.DB_PORT || '3306';
 
 const databaseSchema = [
     usersTable,
@@ -27,11 +27,11 @@ async function addForeignKey(targetTable: string, targetColumn: string, referenc
 
 export const Client = new Sequelize({
     dialect: "mysql",
-    host: process.env.DB_HOST || 'localhost',
-    database: process.env.DB_NAME || 'fullstack',
-    username: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || 'password',
-    port: parseInt(process.env.DB_PORT || '3306'),
+    host: DB_HOST,
+    database: DB_NAME,
+    username: DB_USER,
+    password: DB_PASSWORD,
+    port: parseInt(DB_PORT),
     logging: false
 });
 
