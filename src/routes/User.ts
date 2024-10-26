@@ -1,8 +1,8 @@
 import express from "express";
-import { validateUUID } from "../util/validate";
-import { insertOne } from "../db/database";
-import type { User } from "../types/UserType";
-import { getAllUsers, getUser } from "../functions/userFunctions";
+import { validateUUID } from "../util/validate.js";
+import { insertOne } from "../db/database.js";
+import type { User } from "../types/UserType.js";
+import { getAllUsers, getUser } from "../functions/userFunctions.js";
 export const UserRouter = express.Router();
 
 /**

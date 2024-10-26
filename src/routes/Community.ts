@@ -1,8 +1,8 @@
 import express from "express";
-import { getAll, getOne } from "../db/database";
-import { validateCommunityName } from "../util/validate";
-import type { Community } from "../types/CommunityType";
-import { createCommunity } from "../functions/communityFunctions";
+import { getAll, getOne } from "../db/database.js";
+import { validateCommunityName } from "../util/validate.js";
+import { createCommunity } from "../functions/communityFunctions.js";
+import type { Community } from "../types/CommunityType.js";
 
 export const CommunityRouter = express.Router();
 

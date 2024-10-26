@@ -1,5 +1,5 @@
-import type { Post } from '../types/PostType'
-import { insertOne, deleteOne, checkIfExists, updateOne, Client } from '../db/database'
+import type { Post } from '../types/PostType.js'
+import { insertOne, deleteOne, checkIfExists, updateOne, Client } from '../db/database.js'
 
 export async function createPost(newPost: Post) {
     await insertOne('Posts', newPost);
