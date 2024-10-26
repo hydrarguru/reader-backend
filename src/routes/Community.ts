@@ -8,7 +8,7 @@ export const CommunityRouter = express.Router();
 
 /**
  * @openapi
- * /community:
+ * /communities:
  *   get:
  *     tags: [Community]
  *     description: Get all communities
@@ -16,9 +16,9 @@ export const CommunityRouter = express.Router();
  *       200:
  *         description: Returns all communities
  */
-CommunityRouter.get("/community", async (req, res) => {
+CommunityRouter.get("/communities", async (req, res) => {
     const communities = await getAll("Communities");
-    res.send(communities);
+    res.status(200).send(communities);
 });
 
 /**

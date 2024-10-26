@@ -14,10 +14,7 @@ export const swaggerDef = {
       },
       servers: [
         {
-          url: 'http://localhost:10000',
-        },
-        {
-          url: 'https://reader-backend-oank.onrender.com',
+          url: 'https://reader-api.fly.dev/',
         }
       ],
       tags: [
