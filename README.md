@@ -8,7 +8,7 @@ Currently the API is pretty simple featuring CRUD operations for users, communit
 - [ ] Implement JWT tokens
 - [ ] Secure API endpoints with an API key.
 - [ ] Refactor Posts table to have auto incrementing ids instead of UUID for better sorting/indexing.
-- [ ] Fix issues with Swagger docs not rendering when navigating to /api docs.
+- [x] Fix issues with Swagger docs not rendering when navigating to /api docs.
 
 ## Tech Stack:
 - Express.js.
