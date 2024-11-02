@@ -1,5 +1,7 @@
 import * as jose from 'jose'
 
+const secret = new TextEncoder().encode(`${process.env.SECRET_KEY}`);
+
 export async function generateJWT(userId: string): Promise<string> {
     const secret = new TextEncoder().encode(`${process.env.SECRET_KEY}`);
 
@@ -14,4 +16,16 @@ export async function generateJWT(userId: string): Promise<string> {
         .sign(secret); // Sign the token with the secret key
 
     return jwt;
+}
+
+export async function verifyJWT(token): Promise<boolean> {
+    try {
+        const { payload, protectedHeader } = await jose.jwtVerify(token, secret);
+        console.log('Payload:', payload);
+        console.log('Protected Header:', protectedHeader);
+        return true;
+    } catch (error) {
+        console.error('JWT verification failed:', error);
+        return false;
+    }
 }
