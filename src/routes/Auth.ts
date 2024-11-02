@@ -68,3 +68,39 @@ AuthRouter.get("/auth/verify", (req, res) => {
         });
     }
 });
+
+/**
+ * @openapi
+ * /auth/decode:
+ *   get:
+ *     tags: [Auth]
+ *     description: Decode a JWT.
+ *     parameters:
+ *       - in: query
+ *         name: token
+ *         required: true
+ *         description: JWT to decode
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: JWT decoded successfully.
+ *       400:
+ *         description: JWT decoding failed.
+ */
+AuthRouter.get("/auth/decode", (req, res) => {
+    const token = req.query.token as string;
+    if (!token) {
+        res.status(400).send("Missing required fields.");
+    }
+    else {
+        decodeJWT(token).then((result) => {
+            if (result) {
+                res.status(200).send(result);
+            }
+            else {
+                res.status(400).send("JWT decoding failed.");
+            }
+        });
+    }
+});

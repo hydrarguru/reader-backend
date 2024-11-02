@@ -3,8 +3,6 @@ import * as jose from 'jose'
 const secret = new TextEncoder().encode(`${process.env.SECRET_KEY}`);
 
 export async function generateJWT(userId: string): Promise<string> {
-    const secret = new TextEncoder().encode(`${process.env.SECRET_KEY}`);
-
     const payload = {
         id: userId,
         iat: Math.floor(Date.now() / 1000) // Issued at time
@@ -27,5 +25,15 @@ export async function verifyJWT(token): Promise<boolean> {
     } catch (error) {
         console.error('JWT verification failed:', error);
         return false;
+    }
+}
+
+export async function decodeJWT(token): Promise<any> {
+    try {
+        const { payload, protectedHeader } = await jose.jwtVerify(token, secret);
+        return payload;
+    } catch (error) {
+        console.error('JWT decoding failed:', error);
+        return null;
     }
 }
