@@ -14,10 +14,17 @@ export const UserRouter = express.Router();
  *     responses:
  *       200:
  *         description: Returns all users.
+ *       404:
+ *         description: Error fetching users.
  */
 UserRouter.get("/users", async (req, res) => {
     const users = await getAllUsers();
-    res.send(users);
+    if(users === null) {
+      res.status(404).send("Error fetching users.");
+    }
+    else {
+      res.send(users);
+    }
 });
 
 
@@ -30,6 +37,8 @@ UserRouter.get("/users", async (req, res) => {
  *     responses:
  *       200:
  *         description: Returns a user.
+ *       404:
+ *         description: User not found.
  */
 UserRouter.get("/users/:id", async (req, res) => {
     if (!validateUUID(req.params.id)) {

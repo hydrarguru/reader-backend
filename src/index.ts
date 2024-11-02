@@ -7,7 +7,7 @@ import { checkConnection, generateTables } from "./db/database.js";
 import { UserRouter } from "./routes/User.js"
 import { PostRouter } from "./routes/Post.js";
 import { CommunityRouter } from "./routes/Community.js";
-import { BaseRouter } from "./routes/Base.js";
+import { AuthRouter } from "./routes/Auth.js";
 
 import dotenv from "dotenv";
 dotenv.config();
@@ -23,7 +23,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(corsConfig)
 
-app.use(BaseRouter);
+app.use(AuthRouter);
 app.use(UserRouter);
 app.use(CommunityRouter);
 app.use(PostRouter);
@@ -36,6 +36,10 @@ console.info(`${shouldGenerateTables ? "Generating" : "Not generating"} tables..
 if (shouldGenerateTables) {
   await generateTables();
 }
+
+app.get("/", (req, res) => {
+  res.redirect("/api-docs");
+});
 
 app.listen(port, () => {
   console.log(`Listening on port ${port}.`);

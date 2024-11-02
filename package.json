@@ -10,7 +10,7 @@
     "clean": "rm -rf dist",
     "build": "pnpm exec tsc",
     "start": "node dist/index.js",
-    "dev": "nodemon src/index.ts"
+    "dev": "bun --watch src/index.ts"
   },
   "dependencies": {
     "@types/cors": "^2.8.17",
@@ -38,6 +38,7 @@
     "concurrently": "^9.0.1",
     "nodemon": "^3.1.7",
     "ts-node": "^10.9.2",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "@types/bun": "latest"
   }
 }

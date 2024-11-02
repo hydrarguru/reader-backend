@@ -14,13 +14,18 @@ export const swaggerDef = {
       },
       servers: [
         {
+          url: `http://localhost:${process.env.SERVER_PORT}/`,
+          description: 'Development API URL',
+        },
+        {
           url: 'https://reader-api.fly.dev/',
+          description: 'Production API URL',
         }
       ],
       tags: [
         {
-          name: 'Misc',
-          description: 'Misc endpoints.',
+          name: 'Auth',
+          description: 'Authentication related endpoints.',
         },
         {
           name: 'User',
