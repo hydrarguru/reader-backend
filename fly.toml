@@ -4,7 +4,7 @@
 #
 
 app = 'reader-api'
-primary_region = 'ams'
+primary_region = 'arn'
 
 [build]
 
