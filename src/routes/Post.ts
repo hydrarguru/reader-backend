@@ -176,7 +176,7 @@ PostRouter.post('/post/:post_id/:score', async (req, res) => {
     const score = Number(req.params.score);
     await setPostScore(postId, score).then((result) => {
         if(result) {
-            res.status(200).send({ message: 'Post score updated.' });
+            res.status(204).send();
         }
         else {
             res.status(400).send({ message: 'Error updating post score.' });
