@@ -156,7 +156,7 @@ PostRouter.post("/post/create", async (req, res) => {
  *         schema:
  *           type: number
  *     responses:
- *       200:
+ *       204:
  *         description: Post score updated
  *       400:
  *         description: Invalid UUID or score
