@@ -156,7 +156,7 @@ PostRouter.post("/post/create", async (req, res) => {
  *         schema:
  *           type: number
  *     responses:
- *       200:
+ *       204:
  *         description: Post score updated
  *       400:
  *         description: Invalid UUID or score
@@ -176,7 +176,7 @@ PostRouter.post('/post/:post_id/:score', async (req, res) => {
     const score = Number(req.params.score);
     await setPostScore(postId, score).then((result) => {
         if(result) {
-            res.status(200).send({ message: 'Post score updated.' });
+            res.status(204).send();
         }
         else {
             res.status(400).send({ message: 'Error updating post score.' });

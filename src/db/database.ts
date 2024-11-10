@@ -2,9 +2,11 @@ import { Sequelize, QueryTypes } from "sequelize";
 import { usersTable } from "../models/User.js";
 import { postsTable } from "../models/Post.js";
 import { communitiesTable } from "../models/Community.js";
+import { commentsTable } from "../models/Comments.js";
 import type { User } from '../types/UserType.js';
 import type { Post } from '../types/PostType.js';
 import type { Community } from '../types/CommunityType.js';
+import { Comment } from "../types/CommentsType.js";
 
 import dotenv from "dotenv";
 dotenv.config();
@@ -18,7 +20,8 @@ const DB_PORT = process.env.DB_PORT || '3306';
 const databaseSchema = [
     usersTable,
     postsTable,
-    communitiesTable
+    communitiesTable,
+    commentsTable
 ];
 
 async function addForeignKey(targetTable: string, targetColumn: string, referenceTable: string, referenceColumn: string): Promise<void> {
@@ -51,6 +54,8 @@ export async function generateTables() {
     }
     await addForeignKey("Posts", "post_author", "Users", "user_id");
     await addForeignKey("Posts", "community_id", "Communities", "community_id");
+    await addForeignKey("Comments", "post_id", "Posts", "post_id");
+    await addForeignKey("Comments", "comment_author", "Users", "user_id");
 };
 
 export async function checkForDuplicate(table: string, column: string, value: string | number): Promise<boolean> {
@@ -116,7 +121,7 @@ export async function getOne(table: string, column: string, value: string | numb
     }
 }
 
-export async function insertOne(table: string, item: User | Post | Community): Promise<void> {
+export async function insertOne(table: string, item: User | Post | Community | Comment): Promise<void> {
     const columns = Object.keys(item).join(', ');
     const values = Object.values(item).join("', '");
     await Client.query(`INSERT INTO ${table} (${columns}) VALUES ('${values}')`);
