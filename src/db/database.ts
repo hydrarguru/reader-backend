@@ -2,6 +2,7 @@ import { Sequelize, QueryTypes } from "sequelize";
 import { usersTable } from "../models/User.js";
 import { postsTable } from "../models/Post.js";
 import { communitiesTable } from "../models/Community.js";
+import { commentsTable } from "../models/Comments.js";
 import type { User } from '../types/UserType.js';
 import type { Post } from '../types/PostType.js';
 import type { Community } from '../types/CommunityType.js';
@@ -18,7 +19,8 @@ const DB_PORT = process.env.DB_PORT || '3306';
 const databaseSchema = [
     usersTable,
     postsTable,
-    communitiesTable
+    communitiesTable,
+    commentsTable
 ];
 
 async function addForeignKey(targetTable: string, targetColumn: string, referenceTable: string, referenceColumn: string): Promise<void> {
@@ -51,6 +53,8 @@ export async function generateTables() {
     }
     await addForeignKey("Posts", "post_author", "Users", "user_id");
     await addForeignKey("Posts", "community_id", "Communities", "community_id");
+    await addForeignKey("Comments", "post_id", "Posts", "post_id");
+    await addForeignKey("Comments", "comment_author", "Users", "user_id");
 };
 
 export async function checkForDuplicate(table: string, column: string, value: string | number): Promise<boolean> {
