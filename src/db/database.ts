@@ -6,6 +6,7 @@ import { commentsTable } from "../models/Comments.js";
 import type { User } from '../types/UserType.js';
 import type { Post } from '../types/PostType.js';
 import type { Community } from '../types/CommunityType.js';
+import { Comment } from "../types/CommentsType.js";
 
 import dotenv from "dotenv";
 dotenv.config();
@@ -120,7 +121,7 @@ export async function getOne(table: string, column: string, value: string | numb
     }
 }
 
-export async function insertOne(table: string, item: User | Post | Community): Promise<void> {
+export async function insertOne(table: string, item: User | Post | Community | Comment): Promise<void> {
     const columns = Object.keys(item).join(', ');
     const values = Object.values(item).join("', '");
     await Client.query(`INSERT INTO ${table} (${columns}) VALUES ('${values}')`);
