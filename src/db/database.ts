@@ -52,10 +52,10 @@ export async function generateTables() {
     for (const table of databaseSchema) {
         await Client.query(table);
     }
-    await addForeignKey("Posts", "post_author", "Users", "user_id");
+    await addForeignKey("Posts", "post_author", "Users", "username");
     await addForeignKey("Posts", "community_id", "Communities", "community_id");
     await addForeignKey("Comments", "post_id", "Posts", "post_id");
-    await addForeignKey("Comments", "comment_author", "Users", "user_id");
+    await addForeignKey("Comments", "comment_author", "Users", "username");
 };
 
 export async function checkForDuplicate(table: string, column: string, value: string | number): Promise<boolean> {

@@ -2,7 +2,7 @@ export const commentsTable = `
 CREATE TABLE IF NOT EXISTS Comments (
 comment_id VARCHAR(36) PRIMARY KEY,
 post_id VARCHAR(36) NOT NULL,
-comment_author VARCHAR(36) NOT NULL,
+comment_author VARCHAR(50) NOT NULL,
 comment_content VARCHAR(255) NOT NULL,
 comment_score INT DEFAULT 0,
 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
