@@ -1,7 +1,7 @@
 import express from "express";
 import { getAll, getOne } from "../db/database.js";
-import { validateCommunityName } from "../util/validate.js";
-import { createCommunity } from "../functions/communityFunctions.js";
+import { validateCommunityName, validateUUID } from "../util/validate.js";
+import { createCommunity, deleteCommunity } from "../functions/communityFunctions.js";
 import type { Community } from "../types/CommunityType.js";
 
 export const CommunityRouter = express.Router();
@@ -110,5 +110,36 @@ CommunityRouter.post("/community/create", async (req, res) => {
         else {
             res.status(400).send('Community name already exists.');
         }
+    }
+});
+
+/**
+ * @openapi
+ * /community/delete/{id}:
+ *   delete:
+ *     tags: [Community]
+ *     description: Delete a community by ID
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: ID of the community
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Community deleted
+ *       400:
+ *         description: Invalid community ID
+ */
+CommunityRouter.delete("/community/delete/:id", async (req, res) => {
+    const id = req.params.id;
+    if (!validateUUID(id)) {
+        res.status(400).send("Invalid community ID.");
+        return;
+    }
+    else {
+        await deleteCommunity(id);
+        res.send("Community deleted.");
     }
 });

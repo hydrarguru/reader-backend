@@ -16,7 +16,7 @@ export async function generateJWT(userId: string): Promise<string> {
     return jwt;
 }
 
-export async function verifyJWT(token): Promise<boolean> {
+export async function verifyJWT(token: string): Promise<boolean> {
     try {
         const { payload, protectedHeader } = await jose.jwtVerify(token, secret);
         console.log('Payload:', payload);
@@ -28,7 +28,7 @@ export async function verifyJWT(token): Promise<boolean> {
     }
 }
 
-export async function decodeJWT(token): Promise<any> {
+export async function decodeJWT(token: string): Promise<any> {
     try {
         const { payload, protectedHeader } = await jose.jwtVerify(token, secret);
         return payload;

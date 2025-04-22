@@ -1,8 +1,8 @@
 export type Community = {
-    community_id?: string;
+    community_id: string | undefined;
     community_name: string;
-    community_image_url?: string;
+    community_image_url: string | undefined;
     community_desc: string;
-    created_at?: Date;
-    modified_at?: Date;
+    created_at: Date | undefined;
+    modified_at: Date | undefined;
 };

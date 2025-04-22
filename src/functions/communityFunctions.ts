@@ -14,7 +14,7 @@ export async function createCommunity(newCommunity: Community): Promise<boolean>
     }    
 }
 
-export async function deleteCommunity(community_name: string) {
-    await deleteOne('Communities', 'community_name', community_name);
+export async function deleteCommunity(community_id: string) {
+    await deleteOne('Communities', 'community_id', community_id);
     console.log('Community deleted');
 }
