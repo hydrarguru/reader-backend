@@ -11,7 +11,7 @@ export const CommunityRouter = express.Router();
 
 /**
  * @openapi
- * /communities:
+ * /community:
  *   get:
  *     tags: [Community]
  *     description: Get all communities
@@ -19,7 +19,7 @@ export const CommunityRouter = express.Router();
  *       200:
  *         description: Returns all communities
  */
-CommunityRouter.get("/communities", async (req, res) => {
+CommunityRouter.get("/community", async (req, res) => {
   const communities = await getAll("Communities");
   res.status(200).send(communities);
 });
@@ -29,7 +29,7 @@ CommunityRouter.get("/communities", async (req, res) => {
  * /community/{name}:
  *   get:
  *     tags: [Community]
- *     description: Get a community by name
+ *     description: Get a information about a community by name
  *     parameters:
  *       - in: path
  *         name: name
@@ -115,7 +115,7 @@ CommunityRouter.post("/community/create", async (req, res) => {
 
 /**
  * @openapi
- * /community/delete/{id}:
+ * /community/{id}:
  *   delete:
  *     tags: [Community]
  *     description: Delete a community by ID
@@ -132,7 +132,7 @@ CommunityRouter.post("/community/create", async (req, res) => {
  *       400:
  *         description: Invalid community ID
  */
-CommunityRouter.delete("/community/delete/:id", async (req, res) => {
+CommunityRouter.delete("/community/:id", async (req, res) => {
   const id = req.params.id;
   if (!validateUUID(id)) {
     res.status(400).send("Invalid community ID.");
