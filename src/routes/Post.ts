@@ -8,15 +8,15 @@ export const PostRouter = express.Router();
 
 /**
  * @openapi
- * /posts:
+ * /post/all:
  *   get:
  *     tags: [Post]
- *     description: Get all posts
+ *     description: Fetches all created posts from every community.
  *     responses:
  *       200:
  *         description: Returns all posts
  */
-PostRouter.get("/posts", async (req, res) => {
+PostRouter.get("/post/all", async (req, res) => {
   const posts = await getAll("Posts");
   res.send(posts);
 });
@@ -61,7 +61,7 @@ PostRouter.get("/post/:id", async (req, res) => {
 
 /**
  * @openapi
- * /community/{community_id}/posts:
+ * /community/{community_id}/post/all:
  *   get:
  *     tags: [Post]
  *     description: Get all posts in a community
@@ -76,7 +76,7 @@ PostRouter.get("/post/:id", async (req, res) => {
  *       201:
  *         description: Returns all posts in the community
  */
-PostRouter.get("/community/:community_id/posts", async (req, res) => {
+PostRouter.get("/community/:community_id/post/all", async (req, res) => {
   const community_id = req.params.community_id;
   const posts = (await getAll("Posts")) as Post[];
   const communityPosts = posts.filter(
