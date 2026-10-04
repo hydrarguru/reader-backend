@@ -1,18 +1,30 @@
 import type { OmittedUser, User } from '../types/UserType.js'
 import { insertOne, checkForDuplicate, deleteOne, updateOne, checkIfExists, getOne, getAll } from '../db/database.js'
+import { hashPassword, verifyPassword } from './authFunctions.js'
 
-export async function createUser(newUser: User) {
+export type CreateUserResult = { ok: true, user: OmittedUser } | { ok: false, reason: string };
+
+export async function createUser(newUser: User): Promise<CreateUserResult> {
     if(await checkForDuplicate('Users', 'username', newUser.username)) {
-        console.error('Username already exists.');
+        return { ok: false, reason: 'Username already exists.' };
     }
     if(await checkForDuplicate('Users', 'email', newUser.email)) {
-        console.error('There is already an account associated with this email.');
+        return { ok: false, reason: 'There is already an account associated with this email.' };
     }
-    else {
-        await insertOne('Users', newUser);
-        console.log('User created');
-        console.table(newUser);
+    const user: User = { ...newUser, password: await hashPassword(newUser.password) };
+    await insertOne('Users', user);
+    console.log(`User created: ${user.username}`);
+    const { email, password, created_at, modified_at, ...omittedUser } = user;
+    return { ok: true, user: omittedUser };
+};
+
+// Returns the user's id if the username/password pair is valid, otherwise null.
+export async function authenticateUser(username: string, password: string): Promise<string | null> {
+    const user = await getOne('Users', 'username', username) as User | null;
+    if (!user || !user.user_id || !(await verifyPassword(password, user.password))) {
+        return null;
     }
+    return user.user_id;
 };
 
 export async function getUser(userId: string): Promise<OmittedUser | null> {
@@ -35,7 +47,7 @@ export async function getAllUsers(): Promise<OmittedUser[]> {
 export async function editUser(userId: string, editedUser: User) {
     if(await checkIfExists('Users', 'user_id', userId)) {
         await updateOne('Users', 'user_id', userId, 'username', editedUser.username);
-        await updateOne('Users', 'user_id', userId, 'password', editedUser.password);
+        await updateOne('Users', 'user_id', userId, 'password', await hashPassword(editedUser.password));
         await updateOne('Users', 'user_id', userId, 'email', editedUser.email);
     }
     else {

@@ -1,39 +1,66 @@
 import * as jose from 'jose'
+import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
+import { promisify } from 'node:util';
+import type { NextFunction, Request, Response } from 'express';
+import 'dotenv/config';
 
-const secret = new TextEncoder().encode(`${process.env.SECRET_KEY}`);
+const scryptAsync = promisify(scrypt) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
+const KEY_LENGTH = 64;
+const TOKEN_LIFETIME = '7d';
+
+if (!process.env.SECRET_KEY) {
+    throw new Error('SECRET_KEY is not set. Add it to .env (or `fly secrets set SECRET_KEY=...` in production).');
+}
+const secret = new TextEncoder().encode(process.env.SECRET_KEY);
+
+// Stored as "scrypt$<salt hex>$<hash hex>".
+export async function hashPassword(password: string): Promise<string> {
+    const salt = randomBytes(16);
+    const hash = await scryptAsync(password, salt, KEY_LENGTH);
+    return `scrypt$${salt.toString('hex')}$${hash.toString('hex')}`;
+}
+
+export async function verifyPassword(password: string, stored: string): Promise<boolean> {
+    const [algorithm, saltHex, hashHex] = stored.split('$');
+    if (algorithm !== 'scrypt' || !saltHex || !hashHex) {
+        return false;
+    }
+    const expected = Buffer.from(hashHex, 'hex');
+    const actual = await scryptAsync(password, Buffer.from(saltHex, 'hex'), expected.length);
+    return timingSafeEqual(actual, expected);
+}
 
 export async function generateJWT(userId: string): Promise<string> {
-    const payload = {
-        id: userId,
-        iat: Math.floor(Date.now() / 1000) // Issued at time
-    };
-
-    // Create the JWT
-    const jwt = await new jose.SignJWT(payload)
-        .setProtectedHeader({ alg: 'HS256' }) // Specify the signing algorithm
-        .sign(secret); // Sign the token with the secret key
-
-    return jwt;
+    return new jose.SignJWT({ id: userId })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setIssuedAt()
+        .setExpirationTime(TOKEN_LIFETIME)
+        .sign(secret);
 }
 
 export async function verifyJWT(token: string): Promise<boolean> {
+    return (await decodeJWT(token)) !== null;
+}
+
+export async function decodeJWT(token: string): Promise<jose.JWTPayload | null> {
     try {
-        const { payload, protectedHeader } = await jose.jwtVerify(token, secret);
-        console.log('Payload:', payload);
-        console.log('Protected Header:', protectedHeader);
-        return true;
-    } catch (error) {
-        console.error('JWT verification failed:', error);
-        return false;
+        const { payload } = await jose.jwtVerify(token, secret, { algorithms: ['HS256'] });
+        return payload;
+    } catch {
+        return null;
     }
 }
 
-export async function decodeJWT(token: string): Promise<any> {
-    try {
-        const { payload, protectedHeader } = await jose.jwtVerify(token, secret);
-        return payload;
-    } catch (error) {
-        console.error('JWT decoding failed:', error);
-        return null;
+// Rejects requests without a valid "Authorization: Bearer <token>" header.
+// On success the user's id is available as res.locals.userId.
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
+    const header = req.headers.authorization;
+    const token = header?.startsWith('Bearer ') ? header.slice('Bearer '.length) : undefined;
+    const payload = token ? await decodeJWT(token) : null;
+    if (payload === null || typeof payload.id !== 'string') {
+        res.status(401).send({ message: 'Missing or invalid token.' });
+        return;
     }
+    res.locals.userId = payload.id;
+    next();
 }

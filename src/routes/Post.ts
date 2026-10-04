@@ -3,6 +3,8 @@ import { getAll, getOne, insertOne } from "../db/database.js";
 import { validateUUID, validateScore } from "../util/validate.js";
 import type { Post } from "../types/PostType.js";
 import { setPostScore } from "../functions/postFunctions.js";
+import { requireAuth } from "../functions/authFunctions.js";
+import { getUser } from "../functions/userFunctions.js";
 
 export const PostRouter = express.Router();
 
@@ -11,10 +13,16 @@ export const PostRouter = express.Router();
  * /post/all:
  *   get:
  *     tags: [Post]
- *     description: Fetches all created posts from every community.
+ *     description: Get all posts from every community (at most 100).
  *     responses:
  *       200:
- *         description: Returns all posts
+ *         description: List of posts.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Post'
  */
 PostRouter.get("/post/all", async (req, res) => {
   const posts = await getAll("Posts");
@@ -26,7 +34,7 @@ PostRouter.get("/post/all", async (req, res) => {
  * /post/{id}:
  *   get:
  *     tags: [Post]
- *     description: Get a post by id
+ *     description: Get a post by ID.
  *     parameters:
  *       - in: path
  *         name: id
@@ -34,13 +42,21 @@ PostRouter.get("/post/all", async (req, res) => {
  *         description: UUID of the post
  *         schema:
  *           type: string
+ *           format: uuid
  *     responses:
  *       200:
- *         description: Returns the post
+ *         description: The post.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 post:
+ *                   $ref: '#/components/schemas/Post'
  *       400:
- *         description: Invalid UUID
+ *         description: Invalid UUID (plain text).
  *       404:
- *         description: Post not found
+ *         description: Post not found (plain text).
  */
 PostRouter.get("/post/:id", async (req, res) => {
   const id = req.params.id;
@@ -64,7 +80,7 @@ PostRouter.get("/post/:id", async (req, res) => {
  * /community/{community_id}/post/all:
  *   get:
  *     tags: [Post]
- *     description: Get all posts in a community
+ *     description: Get all posts in a community.
  *     parameters:
  *       - in: path
  *         name: community_id
@@ -72,9 +88,16 @@ PostRouter.get("/post/:id", async (req, res) => {
  *         description: UUID of the community
  *         schema:
  *           type: string
+ *           format: uuid
  *     responses:
- *       201:
- *         description: Returns all posts in the community
+ *       200:
+ *         description: List of posts in the community (empty if none).
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Post'
  */
 PostRouter.get("/community/:community_id/post/all", async (req, res) => {
   const community_id = req.params.community_id;
@@ -90,18 +113,20 @@ PostRouter.get("/community/:community_id/post/all", async (req, res) => {
  * /post/create:
  *   post:
  *     tags: [Post]
- *     description: Create a post
+ *     description: Create a post. The author is the logged-in user.
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
+ *             required: [community_id, post_title, post_content]
  *             properties:
  *               community_id:
  *                 type: string
- *               post_author:
- *                 type: string
+ *                 format: uuid
  *               post_title:
  *                 type: string
  *               post_image_url:
@@ -110,22 +135,56 @@ PostRouter.get("/community/:community_id/post/all", async (req, res) => {
  *                 type: string
  *     responses:
  *       201:
- *         description: Post created
+ *         description: Post created.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 post:
+ *                   $ref: '#/components/schemas/Post'
+ *       400:
+ *         description: Missing required fields.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ *       401:
+ *         description: Missing or invalid token.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
  *       500:
- *         description: Error creating post
+ *         description: Error creating post.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
  */
-PostRouter.post("/post/create", async (req, res) => {
-  const newPost: Post = {
-    post_id: crypto.randomUUID(),
-    community_id: req.body.community_id,
-    post_author: req.body.post_author,
-    post_title: req.body.post_title,
-    post_image_url: req.body.post_image_url,
-    post_content: req.body.post_content,
-    post_score: 0,
-  };
-
+PostRouter.post("/post/create", requireAuth, async (req, res) => {
+  const { community_id, post_title, post_image_url, post_content } = req.body ?? {};
+  if (!community_id || !post_title || !post_content) {
+    res.status(400).send({ message: "community_id, post_title and post_content are required." });
+    return;
+  }
   try {
+    const author = await getUser(res.locals.userId);
+    if (author === null) {
+      res.status(401).send({ message: "User no longer exists." });
+      return;
+    }
+    const newPost: Post = {
+      post_id: crypto.randomUUID(),
+      community_id: community_id,
+      post_author: author.username,
+      post_title: post_title,
+      post_image_url: post_image_url,
+      post_content: post_content,
+      post_score: 0,
+    };
     await insertOne("Posts", newPost);
     res.status(201).send({ message: "Post created.", post: newPost });
   } catch (err) {
@@ -139,7 +198,9 @@ PostRouter.post("/post/create", async (req, res) => {
  * /post/{post_id}/{score}:
  *   post:
  *     tags: [Post]
- *     description: Update a post's score
+ *     description: Set a post's score.
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: post_id
@@ -147,21 +208,33 @@ PostRouter.post("/post/create", async (req, res) => {
  *         description: UUID of the post
  *         schema:
  *           type: string
+ *           format: uuid
  *       - in: path
  *         name: score
  *         required: true
- *         description: Score to update
+ *         description: New score (non-negative integer)
  *         schema:
- *           type: number
+ *           type: integer
+ *           minimum: 0
  *     responses:
  *       204:
- *         description: Post score updated
+ *         description: Score updated.
  *       400:
- *         description: Invalid UUID or score
+ *         description: Invalid UUID or score (plain text), or post not found (JSON message).
+ *       401:
+ *         description: Missing or invalid token.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
  *       500:
- *         description: Error updating post score
+ *         description: Error updating post score.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
  */
-PostRouter.post("/post/:post_id/:score", async (req, res) => {
+PostRouter.post("/post/:post_id/:score", requireAuth, async (req, res) => {
   if (!validateUUID(req.params.post_id)) {
     res.status(400).send("Invalid post UUID.");
     return;
@@ -183,6 +256,6 @@ PostRouter.post("/post/:post_id/:score", async (req, res) => {
     .catch((err) => {
       res
         .status(500)
-        .send({ message: "Error updating post score.", error: err });
+        .send({ message: "Error updating post score." });
     });
 });
