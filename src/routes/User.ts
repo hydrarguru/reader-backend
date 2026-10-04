@@ -92,13 +92,11 @@ UserRouter.post('/user/create', async (req, res) => {
     password: req.body.password,
     email: req.body.email
   };
-  await insertOne('Users', newUser).catch((err) => {
-    console.error(err);
-    res.status(500).send({
-      message: 'Error creating user.',
-      error: err
-    });
-  }).finally(() => {
+  try {
+    await insertOne('Users', newUser);
     res.status(201).send('User created.');
-  });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({ message: 'Error creating user.' });
+  }
 });

@@ -122,7 +122,12 @@ export async function getOne(table: string, column: string, value: string | numb
 }
 
 export async function insertOne(table: string, item: User | Post | Community | Comment): Promise<void> {
-    const columns = Object.keys(item).join(', ');
-    const values = Object.values(item).join("', '");
-    await Client.query(`INSERT INTO ${table} (${columns}) VALUES ('${values}')`);
+    // Undefined fields are left out so the column's default (or NOT NULL check) applies.
+    const entries = Object.entries(item).filter(([, value]) => value !== undefined);
+    const columns = entries.map(([column]) => column).join(', ');
+    const placeholders = entries.map(([column]) => `:${column}`).join(', ');
+    await Client.query(`INSERT INTO ${table} (${columns}) VALUES (${placeholders})`, {
+        type: QueryTypes.INSERT,
+        replacements: Object.fromEntries(entries)
+    });
 }
