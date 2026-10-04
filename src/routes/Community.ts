@@ -15,10 +15,16 @@ export const CommunityRouter = express.Router();
  * /community/all:
  *   get:
  *     tags: [Community]
- *     description: Get all communities
+ *     description: Get all communities (at most 100).
  *     responses:
  *       200:
- *         description: Returns all communities
+ *         description: List of communities.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Community'
  */
 CommunityRouter.get("/community/all", async (req, res) => {
   const communities = await getAll("Communities");
@@ -30,21 +36,28 @@ CommunityRouter.get("/community/all", async (req, res) => {
  * /community/{name}:
  *   get:
  *     tags: [Community]
- *     description: Get a information about a community by name
+ *     description: Get a community by name.
  *     parameters:
  *       - in: path
  *         name: name
  *         required: true
- *         description: Name of the community
+ *         description: Name of the community (letters and underscores, 1-20 characters)
  *         schema:
  *           type: string
  *     responses:
  *       200:
- *         description: Returns the community
+ *         description: The community.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 community:
+ *                   $ref: '#/components/schemas/Community'
  *       400:
- *         description: Invalid community name
+ *         description: Invalid community name (plain text).
  *       404:
- *         description: Community not found
+ *         description: Community not found (plain text).
  */
 CommunityRouter.get("/community/:name", async (req, res) => {
   const name = req.params.name;
@@ -67,7 +80,7 @@ CommunityRouter.get("/community/:name", async (req, res) => {
  * /community/create:
  *   post:
  *     tags: [Community]
- *     description: Create a community
+ *     description: Create a community. Responds with plain text.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -76,18 +89,32 @@ CommunityRouter.get("/community/:name", async (req, res) => {
  *         application/json:
  *           schema:
  *             type: object
+ *             required: [community_name, community_desc]
  *             properties:
  *               community_name:
  *                 type: string
+ *                 description: Letters and underscores, 1-20 characters.
  *               community_desc:
  *                 type: string
+ *               community_image_url:
+ *                 type: string
+ *               community_id:
+ *                 type: string
+ *                 format: uuid
+ *                 description: Optional. Generated if omitted or not a valid UUID.
  *     responses:
  *       201:
- *         description: Community created
+ *         description: Community created. The text includes the created community as JSON.
  *       400:
- *         description: Community name not provided, invalid or already taken
+ *         description: Name missing, invalid or already taken, or description missing.
  *       401:
- *         description: Missing or invalid token
+ *         description: Missing or invalid token.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ *       500:
+ *         description: Error creating community.
  */
 CommunityRouter.post("/community/create", requireAuth, async (req, res) => {
   const { community_id, community_name, community_desc, community_image_url } = req.body ?? {};
@@ -123,23 +150,30 @@ CommunityRouter.post("/community/create", requireAuth, async (req, res) => {
  * /community/{id}:
  *   delete:
  *     tags: [Community]
- *     description: Delete a community by ID
+ *     description: Delete a community by ID. Its posts (and their comments) are deleted too. Responds with plain text.
  *     security:
  *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
  *         required: true
- *         description: ID of the community
+ *         description: UUID of the community
  *         schema:
  *           type: string
+ *           format: uuid
  *     responses:
  *       200:
- *         description: Community deleted
+ *         description: Community deleted.
  *       400:
- *         description: Invalid community ID
+ *         description: Invalid community ID.
  *       401:
- *         description: Missing or invalid token
+ *         description: Missing or invalid token.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ *       500:
+ *         description: Error deleting community.
  */
 CommunityRouter.delete("/community/:id", requireAuth, async (req, res) => {
   const id = req.params.id;

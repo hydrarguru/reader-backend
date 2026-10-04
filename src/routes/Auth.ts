@@ -7,13 +7,14 @@ export const AuthRouter = express.Router();
  * /auth/login:
  *   post:
  *     tags: [Auth]
- *     description: Log in with username and password. Returns a JWT (valid for 7 days) to send as "Authorization Bearer <token>".
+ *     description: Log in with username and password. Returns a JWT (valid for 7 days) to send in the Authorization header as "Bearer <token>".
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
+ *             required: [username, password]
  *             properties:
  *               username:
  *                 type: string
@@ -21,11 +22,29 @@ export const AuthRouter = express.Router();
  *                 type: string
  *     responses:
  *       200:
- *         description: Logged in, returns the token and user id.
+ *         description: Logged in.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/LoginResponse'
  *       400:
  *         description: Missing required fields.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
  *       401:
  *         description: Invalid username or password.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ *       500:
+ *         description: Error logging in.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
  */
 AuthRouter.post("/auth/login", async (req, res) => {
     const { username, password } = req.body ?? {};
@@ -51,7 +70,7 @@ AuthRouter.post("/auth/login", async (req, res) => {
  * /auth/verify:
  *   get:
  *     tags: [Auth]
- *     description: Verify a JWT.
+ *     description: Verify a JWT. Responds with plain text.
  *     parameters:
  *       - in: query
  *         name: token
@@ -61,9 +80,9 @@ AuthRouter.post("/auth/login", async (req, res) => {
  *           type: string
  *     responses:
  *       200:
- *         description: JWT verified successfully.
+ *         description: JWT is valid.
  *       400:
- *         description: JWT verification failed.
+ *         description: Token missing, invalid or expired.
  */
 AuthRouter.get("/auth/verify", (req, res) => {
     const token = req.query.token as string;
@@ -87,7 +106,7 @@ AuthRouter.get("/auth/verify", (req, res) => {
  * /auth/decode:
  *   get:
  *     tags: [Auth]
- *     description: Decode a JWT.
+ *     description: Verify a JWT and return its payload.
  *     parameters:
  *       - in: query
  *         name: token
@@ -97,9 +116,13 @@ AuthRouter.get("/auth/verify", (req, res) => {
  *           type: string
  *     responses:
  *       200:
- *         description: JWT decoded successfully.
+ *         description: The token's payload.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/TokenPayload'
  *       400:
- *         description: JWT decoding failed.
+ *         description: Token missing, invalid or expired (plain text).
  */
 AuthRouter.get("/auth/decode", (req, res) => {
     const token = req.query.token as string;
