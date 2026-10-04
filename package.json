@@ -10,7 +10,8 @@
     "clean": "rm -rf dist",
     "build": "pnpm exec tsc",
     "start": "node dist/index.js",
-    "dev": "bun --watch src/index.ts"
+    "dev": "bun --watch src/index.ts",
+    "smoke-test": "bun scripts/smoke-test.ts"
   },
   "dependencies": {
     "@types/cors": "^2.8.19",
