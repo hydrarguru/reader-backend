@@ -90,26 +90,22 @@ CommunityRouter.post("/community/create", async (req, res) => {
     res.status(400).send("Community name not provided.");
     return;
   }
-  if (request.community_id === undefined || request.community_id === "") {
-    console.warn("Community ID not provided, generating one.");
-    const newCommunity: Community = {
-      community_id: crypto.randomUUID(),
-      community_name: request.community_name,
-      community_desc: request.community_desc,
-    };
+  // Only known fields are copied: insertOne uses the object's keys as column names.
+  const newCommunity: Community = {
+    community_id: request.community_id || crypto.randomUUID(),
+    community_name: request.community_name,
+    community_desc: request.community_desc,
+    community_image_url: request.community_image_url,
+  };
+  try {
     if (await createCommunity(newCommunity)) {
-      res
-        .status(201)
-        .send("Community created: " + JSON.stringify(newCommunity));
+      res.status(201).send("Community created: " + JSON.stringify(newCommunity));
     } else {
       res.status(400).send("Community name already exists.");
     }
-  } else {
-    if (await createCommunity(request)) {
-      res.status(201).send("Community created: " + JSON.stringify(request));
-    } else {
-      res.status(400).send("Community name already exists.");
-    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error creating community.");
   }
 });
 

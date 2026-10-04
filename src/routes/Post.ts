@@ -125,17 +125,13 @@ PostRouter.post("/post/create", async (req, res) => {
     post_score: 0,
   };
 
-  await insertOne("Posts", newPost)
-    .catch((err) => {
-      console.error(err);
-      res.status(500).send({
-        message: "Error creating post.",
-        error: err,
-      });
-    })
-    .finally(() => {
-      res.status(201).send({ message: "Post created.", post: newPost });
-    });
+  try {
+    await insertOne("Posts", newPost);
+    res.status(201).send({ message: "Post created.", post: newPost });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({ message: "Error creating post." });
+  }
 });
 
 /**
