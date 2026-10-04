@@ -96,6 +96,17 @@ export const swaggerDef = {
             modified_at: { type: "string", format: "date-time" },
           },
         },
+        PostVote: {
+          type: "object",
+          properties: {
+            post_id: { type: "string", format: "uuid" },
+            vote: {
+              type: "integer",
+              enum: [1, -1],
+              description: "1 = upvote, -1 = downvote.",
+            },
+          },
+        },
       },
     },
     tags: [

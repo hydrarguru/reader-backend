@@ -3,6 +3,7 @@ import { usersTable } from "../models/User.js";
 import { postsTable } from "../models/Post.js";
 import { communitiesTable } from "../models/Community.js";
 import { commentsTable } from "../models/Comments.js";
+import { postVotesTable } from "../models/PostVote.js";
 import type { User } from '../types/UserType.js';
 import type { Post } from '../types/PostType.js';
 import type { Community } from '../types/CommunityType.js';
@@ -22,7 +23,8 @@ const databaseSchema = [
     usersTable,
     communitiesTable,
     postsTable,
-    commentsTable
+    commentsTable,
+    postVotesTable
 ];
 
 export const Client = new Sequelize({
