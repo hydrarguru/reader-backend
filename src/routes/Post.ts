@@ -1,8 +1,8 @@
 import express from "express";
 import { getAll, getOne, insertOne } from "../db/database.js";
-import { validateUUID, validateScore } from "../util/validate.js";
+import { validateUUID, validateVote } from "../util/validate.js";
 import type { Post } from "../types/PostType.js";
-import { setPostScore } from "../functions/postFunctions.js";
+import { votePost, getUserVotes } from "../functions/postFunctions.js";
 import { requireAuth } from "../functions/authFunctions.js";
 import { getUser } from "../functions/userFunctions.js";
 
@@ -27,6 +27,46 @@ export const PostRouter = express.Router();
 PostRouter.get("/post/all", async (req, res) => {
   const posts = await getAll("Posts");
   res.send(posts);
+});
+
+/**
+ * @openapi
+ * /post/votes:
+ *   get:
+ *     tags: [Post]
+ *     description: Get the logged-in user's votes on posts. Posts the user hasn't voted on are left out.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: The user's votes.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/PostVote'
+ *       401:
+ *         description: Missing or invalid token.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ *       500:
+ *         description: Error fetching votes.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ */
+// Registered before /post/:id so "votes" isn't treated as a post id.
+PostRouter.get("/post/votes", requireAuth, async (req, res) => {
+  try {
+    res.send(await getUserVotes(res.locals.userId));
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({ message: "Error fetching votes." });
+  }
 });
 
 /**
@@ -195,10 +235,12 @@ PostRouter.post("/post/create", requireAuth, async (req, res) => {
 
 /**
  * @openapi
- * /post/{post_id}/{score}:
+ * /post/{post_id}/vote:
  *   post:
  *     tags: [Post]
- *     description: Set a post's score.
+ *     description: >
+ *       Upvote, downvote or remove the logged-in user's vote on a post.
+ *       Each user counts at most once, and voting the same way twice changes nothing.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -209,53 +251,76 @@ PostRouter.post("/post/create", requireAuth, async (req, res) => {
  *         schema:
  *           type: string
  *           format: uuid
- *       - in: path
- *         name: score
- *         required: true
- *         description: New score (non-negative integer)
- *         schema:
- *           type: integer
- *           minimum: 0
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [vote]
+ *             properties:
+ *               vote:
+ *                 type: integer
+ *                 enum: [1, 0, -1]
+ *                 description: 1 = upvote, -1 = downvote, 0 = remove vote.
  *     responses:
- *       204:
- *         description: Score updated.
+ *       200:
+ *         description: Vote saved.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 post_score:
+ *                   type: integer
+ *                 vote:
+ *                   type: integer
+ *                   enum: [1, 0, -1]
  *       400:
- *         description: Invalid UUID or score (plain text), or post not found (JSON message).
+ *         description: Invalid UUID or vote.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
  *       401:
  *         description: Missing or invalid token.
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Message'
+ *       404:
+ *         description: Post not found.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
  *       500:
- *         description: Error updating post score.
+ *         description: Error saving vote.
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Message'
  */
-PostRouter.post("/post/:post_id/:score", requireAuth, async (req, res) => {
-  if (!validateUUID(req.params.post_id)) {
-    res.status(400).send("Invalid post UUID.");
-    return;
-  }
-  if (!validateScore(Number(req.params.score))) {
-    res.status(400).send("Invalid score.");
-    return;
-  }
+PostRouter.post("/post/:post_id/vote", requireAuth, async (req, res) => {
   const postId = req.params.post_id;
-  const score = Number(req.params.score);
-  await setPostScore(postId, score)
-    .then((result) => {
-      if (result) {
-        res.status(204).send();
-      } else {
-        res.status(400).send({ message: "Error updating post score." });
-      }
-    })
-    .catch((err) => {
-      res
-        .status(500)
-        .send({ message: "Error updating post score." });
-    });
+  const vote = req.body?.vote;
+  if (!validateUUID(postId)) {
+    res.status(400).send({ message: "Invalid post UUID." });
+    return;
+  }
+  if (!validateVote(vote)) {
+    res.status(400).send({ message: "vote must be 1, 0 or -1." });
+    return;
+  }
+  try {
+    const postScore = await votePost(postId, res.locals.userId, vote);
+    if (postScore === null) {
+      res.status(404).send({ message: "Post not found." });
+      return;
+    }
+    res.send({ post_score: postScore, vote: vote });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({ message: "Error saving vote." });
+  }
 });

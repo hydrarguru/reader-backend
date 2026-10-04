@@ -1,4 +1,4 @@
-// End-to-end smoke test for auth, SQL injection and foreign key behaviour.
+// End-to-end smoke test for auth, SQL injection, voting and foreign key behaviour.
 //
 // Start the server first (with shouldGenerateTables = true on a fresh database), then:
 //   bun scripts/smoke-test.ts
@@ -75,11 +75,13 @@ async function main() {
     { type: QueryTypes.SELECT, replacements: { schema: DB_NAME } }
   );
   const fk = (table: string, ref: string) => fks.filter((f) => f.TABLE_NAME === table && f.REFERENCED_TABLE_NAME === ref);
-  check("exactly 4 foreign keys (no duplicates)", fks.length === 4, fks.length);
+  check("exactly 6 foreign keys (no duplicates)", fks.length === 6, fks.length);
   check("Posts → Communities cascades on delete", fk("Posts", "Communities")[0]?.DELETE_RULE === "CASCADE", fk("Posts", "Communities"));
   check("Posts → Users cascades on update", fk("Posts", "Users")[0]?.UPDATE_RULE === "CASCADE", fk("Posts", "Users"));
   check("Comments → Posts cascades on delete", fk("Comments", "Posts")[0]?.DELETE_RULE === "CASCADE", fk("Comments", "Posts"));
   check("Comments → Users cascades on update", fk("Comments", "Users")[0]?.UPDATE_RULE === "CASCADE", fk("Comments", "Users"));
+  check("PostVotes → Posts cascades on delete", fk("PostVotes", "Posts")[0]?.DELETE_RULE === "CASCADE", fk("PostVotes", "Posts"));
+  check("PostVotes → Users cascades on delete", fk("PostVotes", "Users")[0]?.DELETE_RULE === "CASCADE", fk("PostVotes", "Users"));
 
   console.log("\nSign-up");
   const signup = await call("POST", "/user/create", { body: { username, password, email: `${username}@example.com` } });
@@ -134,19 +136,53 @@ async function main() {
   check("optional post_image_url is NULL, not 'undefined'", fetchedPost.json?.post?.post_image_url === null, fetchedPost.json?.post?.post_image_url);
   const usersTable = await Client.query("SHOW TABLES LIKE 'Users'", { type: QueryTypes.SELECT });
   check("Users table still exists", usersTable.length === 1);
-  const scoreNoToken = await call("POST", `/post/${postId}/5`);
-  check("setting a score without a token is rejected (401)", scoreNoToken.status === 401, scoreNoToken);
-  const score = await call("POST", `/post/${postId}/5`, { token });
-  const scoredPost = await call("GET", `/post/${postId}`);
-  check("setting a score with a token works (204, score = 5)", score.status === 204 && scoredPost.json?.post?.post_score === 5, { status: score.status, score: scoredPost.json?.post?.post_score });
+
+  console.log("\nVoting");
+  const scoreOf = async () => (await call("GET", `/post/${postId}`)).json?.post?.post_score;
+  const vote = (value: unknown, voteToken = token) => call("POST", `/post/${postId}/vote`, { body: { vote: value }, token: voteToken });
+  const voteNoToken = await call("POST", `/post/${postId}/vote`, { body: { vote: 1 } });
+  check("voting without a token is rejected (401)", voteNoToken.status === 401, voteNoToken);
+  const badVote = await vote(5);
+  check("a vote other than 1, 0 or -1 is rejected (400)", badVote.status === 400, badVote);
+  const missingPost = await call("POST", `/post/${crypto.randomUUID()}/vote`, { body: { vote: 1 }, token });
+  check("voting on a missing post is rejected (404)", missingPost.status === 404, missingPost);
+  const up = await vote(1);
+  check("upvote returns the new score (200, score = 1)", up.status === 200 && up.json?.post_score === 1 && up.json?.vote === 1, up);
+  await vote(1);
+  await vote(1);
+  check("upvoting again doesn't change the score", (await scoreOf()) === 1, await scoreOf());
+  const down = await vote(-1);
+  check("switching to a downvote moves the score by 2 (score = -1)", down.json?.post_score === -1 && (await scoreOf()) === -1, down.json);
+  const myVotes = await call("GET", "/post/votes", { token });
+  check("GET /post/votes lists the user's vote", myVotes.status === 200 && myVotes.json?.some((v: any) => v.post_id === postId && v.vote === -1), myVotes.json);
+  const votesNoToken = await call("GET", "/post/votes");
+  check("GET /post/votes without a token is rejected (401)", votesNoToken.status === 401, votesNoToken);
+  const cleared = await vote(0);
+  check("removing the vote resets the score (score = 0)", cleared.json?.post_score === 0 && (await scoreOf()) === 0, cleared.json);
+  const myVotesAfter = await call("GET", "/post/votes", { token });
+  check("removed vote is no longer listed", !myVotesAfter.json?.some((v: any) => v.post_id === postId), myVotesAfter.json);
+
+  const otherUsername = `smoke2_${runId}`;
+  await call("POST", "/user/create", { body: { username: otherUsername, password, email: `${otherUsername}@example.com` } });
+  const otherToken: string = (await call("POST", "/auth/login", { body: { username: otherUsername, password } })).json?.token ?? "";
+  await vote(1);
+  await vote(1, otherToken);
+  check("two users upvoting gives a score of 2", (await scoreOf()) === 2, await scoreOf());
+  const parallel = await Promise.all(Array.from({ length: 10 }, () => vote(-1)));
+  check("10 parallel downvotes from one user count once (score = 0)", parallel.every((r) => r.status === 200) && (await scoreOf()) === 0, await scoreOf());
 
   console.log("\nCascading delete");
   const deleted = await call("DELETE", `/community/${communityId}`, { token });
   check("community delete succeeds (200)", deleted.status === 200, deleted);
   const gone = await call("GET", `/post/${postId}`);
   check("the community's post was deleted with it (404)", gone.status === 404, gone);
+  const [leftoverVotes] = await Client.query<{ n: number }>("SELECT COUNT(*) AS n FROM PostVotes WHERE post_id = :postId", {
+    type: QueryTypes.SELECT,
+    replacements: { postId },
+  });
+  check("the post's votes were deleted with it", Number(leftoverVotes?.n) === 0, leftoverVotes);
 
-  await Client.query("DELETE FROM Users WHERE username = :username", { replacements: { username } });
+  await Client.query("DELETE FROM Users WHERE username IN (:usernames)", { replacements: { usernames: [username, `smoke2_${runId}`] } });
 
   console.log(`\n${passed} passed, ${failed} failed`);
 }
