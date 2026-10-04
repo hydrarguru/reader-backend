@@ -17,6 +17,10 @@ export const swaggerDef = {
         url: "https://reader-api.fly.dev/",
         description: "Production API URL",
       },
+      {
+        url: "http://localhost:10000/",
+        description: "Local development API URL",
+      },
     ],
     components: {
       securitySchemes: {
@@ -36,14 +40,22 @@ export const swaggerDef = {
         LoginResponse: {
           type: "object",
           properties: {
-            token: { type: "string", description: "JWT, valid for 7 days. Send as \"Authorization: Bearer <token>\"." },
+            token: {
+              type: "string",
+              description:
+                'JWT, valid for 7 days. Send as "Authorization: Bearer <token>".',
+            },
             user_id: { type: "string", format: "uuid" },
           },
         },
         TokenPayload: {
           type: "object",
           properties: {
-            id: { type: "string", format: "uuid", description: "ID of the user the token was issued to." },
+            id: {
+              type: "string",
+              format: "uuid",
+              description: "ID of the user the token was issued to.",
+            },
             iat: { type: "integer", description: "Issued at (Unix seconds)." },
             exp: { type: "integer", description: "Expires at (Unix seconds)." },
           },
@@ -72,7 +84,10 @@ export const swaggerDef = {
           properties: {
             post_id: { type: "string", format: "uuid" },
             community_id: { type: "string", format: "uuid" },
-            post_author: { type: "string", description: "Username of the author." },
+            post_author: {
+              type: "string",
+              description: "Username of the author.",
+            },
             post_title: { type: "string" },
             post_image_url: { type: "string", nullable: true },
             post_content: { type: "string" },
