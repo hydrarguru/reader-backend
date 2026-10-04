@@ -1,35 +1,48 @@
 import express from "express";
 import { generateJWT, verifyJWT, decodeJWT } from "../functions/authFunctions.js";
+import { authenticateUser } from "../functions/userFunctions.js";
 export const AuthRouter = express.Router();
 /**
  * @openapi
- * /auth:
+ * /auth/login:
  *   post:
  *     tags: [Auth]
- *     description: Generate a JWT for a user.
- *     parameters:
- *       - in: query
- *         name: userId
- *         required: true
- *         description: UUID of the user
- *         schema:
- *           type: string
+ *     description: Log in with username and password. Returns a JWT (valid for 7 days) to send as "Authorization Bearer <token>".
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               username:
+ *                 type: string
+ *               password:
+ *                 type: string
  *     responses:
  *       200:
- *         description: JWT generated successfully.
+ *         description: Logged in, returns the token and user id.
  *       400:
  *         description: Missing required fields.
+ *       401:
+ *         description: Invalid username or password.
  */
-
-AuthRouter.post("/auth", (req, res) => {
-    const id = req.query.userId as string;
-    if (!id) {
-        res.status(400).send("Missing required fields.");
+AuthRouter.post("/auth/login", async (req, res) => {
+    const { username, password } = req.body ?? {};
+    if (typeof username !== "string" || typeof password !== "string" || !username || !password) {
+        res.status(400).send({ message: "Missing required fields." });
+        return;
     }
-    else {
-        generateJWT(id).then((jwt) => {
-            res.status(200).send(jwt);
-        });
+    try {
+        const userId = await authenticateUser(username, password);
+        if (userId === null) {
+            res.status(401).send({ message: "Invalid username or password." });
+            return;
+        }
+        res.status(200).send({ token: await generateJWT(userId), user_id: userId });
+    } catch (err) {
+        console.error(err);
+        res.status(500).send({ message: "Error logging in." });
     }
 });
 

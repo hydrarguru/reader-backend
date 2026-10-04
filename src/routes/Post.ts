@@ -3,6 +3,8 @@ import { getAll, getOne, insertOne } from "../db/database.js";
 import { validateUUID, validateScore } from "../util/validate.js";
 import type { Post } from "../types/PostType.js";
 import { setPostScore } from "../functions/postFunctions.js";
+import { requireAuth } from "../functions/authFunctions.js";
+import { getUser } from "../functions/userFunctions.js";
 
 export const PostRouter = express.Router();
 
@@ -90,7 +92,9 @@ PostRouter.get("/community/:community_id/post/all", async (req, res) => {
  * /post/create:
  *   post:
  *     tags: [Post]
- *     description: Create a post
+ *     description: Create a post. The author is the logged-in user.
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -99,8 +103,6 @@ PostRouter.get("/community/:community_id/post/all", async (req, res) => {
  *             type: object
  *             properties:
  *               community_id:
- *                 type: string
- *               post_author:
  *                 type: string
  *               post_title:
  *                 type: string
@@ -111,21 +113,34 @@ PostRouter.get("/community/:community_id/post/all", async (req, res) => {
  *     responses:
  *       201:
  *         description: Post created
+ *       400:
+ *         description: Missing required fields
+ *       401:
+ *         description: Missing or invalid token
  *       500:
  *         description: Error creating post
  */
-PostRouter.post("/post/create", async (req, res) => {
-  const newPost: Post = {
-    post_id: crypto.randomUUID(),
-    community_id: req.body.community_id,
-    post_author: req.body.post_author,
-    post_title: req.body.post_title,
-    post_image_url: req.body.post_image_url,
-    post_content: req.body.post_content,
-    post_score: 0,
-  };
-
+PostRouter.post("/post/create", requireAuth, async (req, res) => {
+  const { community_id, post_title, post_image_url, post_content } = req.body ?? {};
+  if (!community_id || !post_title || !post_content) {
+    res.status(400).send({ message: "community_id, post_title and post_content are required." });
+    return;
+  }
   try {
+    const author = await getUser(res.locals.userId);
+    if (author === null) {
+      res.status(401).send({ message: "User no longer exists." });
+      return;
+    }
+    const newPost: Post = {
+      post_id: crypto.randomUUID(),
+      community_id: community_id,
+      post_author: author.username,
+      post_title: post_title,
+      post_image_url: post_image_url,
+      post_content: post_content,
+      post_score: 0,
+    };
     await insertOne("Posts", newPost);
     res.status(201).send({ message: "Post created.", post: newPost });
   } catch (err) {
@@ -140,6 +155,8 @@ PostRouter.post("/post/create", async (req, res) => {
  *   post:
  *     tags: [Post]
  *     description: Update a post's score
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: post_id
@@ -158,10 +175,12 @@ PostRouter.post("/post/create", async (req, res) => {
  *         description: Post score updated
  *       400:
  *         description: Invalid UUID or score
+ *       401:
+ *         description: Missing or invalid token
  *       500:
  *         description: Error updating post score
  */
-PostRouter.post("/post/:post_id/:score", async (req, res) => {
+PostRouter.post("/post/:post_id/:score", requireAuth, async (req, res) => {
   if (!validateUUID(req.params.post_id)) {
     res.status(400).send("Invalid post UUID.");
     return;
@@ -183,6 +202,6 @@ PostRouter.post("/post/:post_id/:score", async (req, res) => {
     .catch((err) => {
       res
         .status(500)
-        .send({ message: "Error updating post score.", error: err });
+        .send({ message: "Error updating post score." });
     });
 });

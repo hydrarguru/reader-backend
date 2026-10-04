@@ -18,6 +18,15 @@ export const swaggerDef = {
         description: "Production API URL",
       },
     ],
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT",
+        },
+      },
+    },
     tags: [
       {
         name: "User",

@@ -17,16 +17,13 @@ const DB_USER = process.env.DB_USER || 'root';
 const DB_PASSWORD = process.env.DB_PASSWORD || 'password';
 const DB_PORT = process.env.DB_PORT || '3306';
 
+// Order matters: a table's foreign keys can only reference tables created before it.
 const databaseSchema = [
     usersTable,
-    postsTable,
     communitiesTable,
+    postsTable,
     commentsTable
 ];
-
-async function addForeignKey(targetTable: string, targetColumn: string, referenceTable: string, referenceColumn: string): Promise<void> {
-    await Client.query(`ALTER TABLE ${targetTable} ADD FOREIGN KEY (${targetColumn}) REFERENCES ${referenceTable}(${referenceColumn})`);
-}
 
 export const Client = new Sequelize({
     dialect: "mysql",
@@ -52,10 +49,6 @@ export async function generateTables() {
     for (const table of databaseSchema) {
         await Client.query(table);
     }
-    await addForeignKey("Posts", "post_author", "Users", "username");
-    await addForeignKey("Posts", "community_id", "Communities", "community_id");
-    await addForeignKey("Comments", "post_id", "Posts", "post_id");
-    await addForeignKey("Comments", "comment_author", "Users", "username");
 };
 
 export async function checkForDuplicate(table: string, column: string, value: string | number): Promise<boolean> {

@@ -6,6 +6,7 @@ import {
   deleteCommunity,
 } from "../functions/communityFunctions.js";
 import type { Community } from "../types/CommunityType.js";
+import { requireAuth } from "../functions/authFunctions.js";
 
 export const CommunityRouter = express.Router();
 
@@ -67,6 +68,8 @@ CommunityRouter.get("/community/:name", async (req, res) => {
  *   post:
  *     tags: [Community]
  *     description: Create a community
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -82,20 +85,26 @@ CommunityRouter.get("/community/:name", async (req, res) => {
  *       201:
  *         description: Community created
  *       400:
- *         description: Community name not provided
+ *         description: Community name not provided, invalid or already taken
+ *       401:
+ *         description: Missing or invalid token
  */
-CommunityRouter.post("/community/create", async (req, res) => {
-  const request = req.body as Community;
-  if (request.community_name === undefined || request.community_name === "") {
-    res.status(400).send("Community name not provided.");
+CommunityRouter.post("/community/create", requireAuth, async (req, res) => {
+  const { community_id, community_name, community_desc, community_image_url } = req.body ?? {};
+  if (!community_name || !validateCommunityName(community_name)) {
+    res.status(400).send("Community name not provided or invalid.");
+    return;
+  }
+  if (!community_desc) {
+    res.status(400).send("Community description not provided.");
     return;
   }
   // Only known fields are copied: insertOne uses the object's keys as column names.
   const newCommunity: Community = {
-    community_id: request.community_id || crypto.randomUUID(),
-    community_name: request.community_name,
-    community_desc: request.community_desc,
-    community_image_url: request.community_image_url,
+    community_id: community_id && validateUUID(community_id) ? community_id : crypto.randomUUID(),
+    community_name: community_name,
+    community_desc: community_desc,
+    community_image_url: community_image_url,
   };
   try {
     if (await createCommunity(newCommunity)) {
@@ -115,6 +124,8 @@ CommunityRouter.post("/community/create", async (req, res) => {
  *   delete:
  *     tags: [Community]
  *     description: Delete a community by ID
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -127,14 +138,20 @@ CommunityRouter.post("/community/create", async (req, res) => {
  *         description: Community deleted
  *       400:
  *         description: Invalid community ID
+ *       401:
+ *         description: Missing or invalid token
  */
-CommunityRouter.delete("/community/:id", async (req, res) => {
+CommunityRouter.delete("/community/:id", requireAuth, async (req, res) => {
   const id = req.params.id;
   if (!validateUUID(id)) {
     res.status(400).send("Invalid community ID.");
     return;
-  } else {
+  }
+  try {
     await deleteCommunity(id);
     res.send("Community deleted.");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Error deleting community.");
   }
 });

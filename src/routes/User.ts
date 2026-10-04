@@ -1,8 +1,7 @@
 import express from "express";
 import { validateUUID } from "../util/validate.js";
-import { insertOne } from "../db/database.js";
 import type { User } from "../types/UserType.js";
-import { getAllUsers, getUser } from "../functions/userFunctions.js";
+import { createUser, getAllUsers, getUser } from "../functions/userFunctions.js";
 export const UserRouter = express.Router();
 
 /**
@@ -82,19 +81,32 @@ UserRouter.get("/user/:id", async (req, res) => {
  *     responses:
  *       201:
  *         description: User created.
+ *       400:
+ *         description: Missing required fields.
+ *       409:
+ *         description: Username or email already in use.
  *       500:
  *         description: Error creating user.
  */
 UserRouter.post('/user/create', async (req, res) => {
+  const { username, password, email } = req.body ?? {};
+  if ([username, password, email].some((field) => typeof field !== 'string' || field === '')) {
+    res.status(400).send({ message: 'username, password and email are required.' });
+    return;
+  }
   const newUser: User = {
     user_id: crypto.randomUUID(),
-    username: req.body.username,
-    password: req.body.password,
-    email: req.body.email
+    username: username,
+    password: password,
+    email: email
   };
   try {
-    await insertOne('Users', newUser);
-    res.status(201).send('User created.');
+    const result = await createUser(newUser);
+    if (!result.ok) {
+      res.status(409).send({ message: result.reason });
+      return;
+    }
+    res.status(201).send({ message: 'User created.', user: result.user });
   } catch (err) {
     console.error(err);
     res.status(500).send({ message: 'Error creating user.' });
