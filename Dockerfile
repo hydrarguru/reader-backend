@@ -13,7 +13,7 @@ WORKDIR /app
 ENV NODE_ENV="production"
 
 # Install pnpm
-ARG PNPM_VERSION=latest
+ARG PNPM_VERSION=12
 RUN npm install -g pnpm@$PNPM_VERSION
 
 
@@ -25,7 +25,7 @@ RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y build-essential node-gyp pkg-config python-is-python3
 
 # Install node modules
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --no-frozen-lockfile --force --prod=false
 
 # Copy application code
