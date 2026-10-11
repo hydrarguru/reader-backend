@@ -92,6 +92,10 @@ export const swaggerDef = {
             post_image_url: { type: "string", nullable: true },
             post_content: { type: "string" },
             post_score: { type: "integer" },
+            comment_count: {
+              type: "integer",
+              description: "Number of comments on the post.",
+            },
             created_at: { type: "string", format: "date-time" },
             modified_at: { type: "string", format: "date-time" },
           },

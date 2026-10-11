@@ -128,7 +128,7 @@ async function main() {
     body: { community_id: communityId, post_title: injectionTitle, post_content: "Body with 'quotes'", post_author: "someone_else" },
     token,
   });
-  check("post create with a token succeeds (201)", post.status === 201, post);
+  check("post create with a token succeeds (201) with comment_count 0", post.status === 201 && post.json?.post?.comment_count === 0, post);
   const postId: string | undefined = post.json?.post?.post_id;
   const fetchedPost = await call("GET", `/post/${postId}`);
   check("injection string is stored as plain text", fetchedPost.json?.post?.post_title === injectionTitle, fetchedPost.json?.post?.post_title);
@@ -194,7 +194,13 @@ async function main() {
   const commentId: string | undefined = comment.json?.comment?.comment_id;
   check("comment_author comes from the token, not the request body", comment.json?.comment?.comment_author === username, comment.json);
   check("comment content is trimmed and stored as plain text", comment.json?.comment?.comment_content === injectionTitle, comment.json);
+  const countOf = async () => (await call("GET", `/post/${postId}`)).json?.post?.comment_count;
+  check("post comment_count is 1 after one comment", (await countOf()) === 1, await countOf());
   const otherComment = await call("POST", `/post/${postId}/comments`, { body: { comment_content: "Second" }, token: otherToken });
+  const allPosts = await call("GET", "/post/all");
+  check("GET /post/all includes comment_count (2)", allPosts.json?.find((p: any) => p.post_id === postId)?.comment_count === 2, allPosts.json?.find((p: any) => p.post_id === postId));
+  const communityPosts = await call("GET", `/community/${communityId}/post/all`);
+  check("community post list includes comment_count (2)", communityPosts.json?.length === 1 && communityPosts.json[0]?.comment_count === 2, communityPosts.json);
   const otherCommentId: string | undefined = otherComment.json?.comment?.comment_id;
   const listed = await call("GET", `/post/${postId}/comments`);
   // created_at has one-second precision, so only the order of the timestamps is checked.
@@ -213,6 +219,7 @@ async function main() {
   const deleteAgain = await call("DELETE", `/comment/${commentId}`, { token });
   check("deleting it again is rejected (404)", deleteAgain.status === 404, deleteAgain);
   const afterDelete = await call("GET", `/post/${postId}/comments`);
+  check("comment_count drops to 1 after a delete", (await countOf()) === 1, await countOf());
   check("the deleted comment is no longer listed", afterDelete.json?.length === 1 && afterDelete.json[0]?.comment_id === otherCommentId, afterDelete.json);
 
   console.log("\nCascading delete");

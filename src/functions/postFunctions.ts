@@ -3,6 +3,33 @@ import type { PostVote } from '../types/PostVoteType.js'
 import { QueryTypes } from 'sequelize'
 import { Client, insertOne, deleteOne, checkIfExists, updateOne } from '../db/database.js'
 
+// Selects posts along with how many comments each one has.
+const POSTS_WITH_COMMENT_COUNT = `
+SELECT Posts.*, CAST((SELECT COUNT(*) FROM Comments WHERE Comments.post_id = Posts.post_id) AS UNSIGNED) AS comment_count
+FROM Posts`;
+
+export async function getPosts(communityId?: string): Promise<Post[]> {
+    const where = communityId === undefined ? '' : ' WHERE community_id = :communityId';
+    const posts = await Client.query<Post>(`${POSTS_WITH_COMMENT_COUNT}${where} LIMIT 100`, {
+        type: QueryTypes.SELECT,
+        replacements: { communityId }
+    });
+    return posts.map(withNumericCount);
+}
+
+export async function getPost(postId: string): Promise<Post | null> {
+    const [post] = await Client.query<Post>(`${POSTS_WITH_COMMENT_COUNT} WHERE post_id = :postId`, {
+        type: QueryTypes.SELECT,
+        replacements: { postId }
+    });
+    return post === undefined ? null : withNumericCount(post);
+}
+
+// COUNT can come back as a string from the MySQL driver, so make sure clients always get a number.
+function withNumericCount(post: Post): Post {
+    return { ...post, comment_count: Number(post.comment_count ?? 0) };
+}
+
 export async function createPost(newPost: Post) {
     await insertOne('Posts', newPost);
     console.log('Post created');
