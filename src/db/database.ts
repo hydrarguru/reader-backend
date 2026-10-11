@@ -4,6 +4,8 @@ import { postsTable } from "../models/Post.js";
 import { communitiesTable } from "../models/Community.js";
 import { commentsTable } from "../models/Comments.js";
 import { postVotesTable } from "../models/PostVote.js";
+import { adminsTable } from "../models/Admin.js";
+import { communityRulesTable } from "../models/CommunityRule.js";
 import type { User } from '../types/UserType.js';
 import type { Post } from '../types/PostType.js';
 import type { Community } from '../types/CommunityType.js';
@@ -24,7 +26,9 @@ const databaseSchema = [
     communitiesTable,
     postsTable,
     commentsTable,
-    postVotesTable
+    postVotesTable,
+    adminsTable,
+    communityRulesTable
 ];
 
 export const Client = new Sequelize({
