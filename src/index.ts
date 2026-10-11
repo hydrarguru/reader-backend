@@ -8,6 +8,7 @@ import { UserRouter } from "./routes/User.js";
 import { PostRouter } from "./routes/Post.js";
 import { CommunityRouter } from "./routes/Community.js";
 import { AuthRouter } from "./routes/Auth.js";
+import { CommentRouter } from "./routes/Comment.js";
 
 import dotenv from "dotenv";
 dotenv.config();
@@ -26,6 +27,7 @@ app.use(AuthRouter);
 app.use(UserRouter);
 app.use(CommunityRouter);
 app.use(PostRouter);
+app.use(CommentRouter);
 
 checkConnection();
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));

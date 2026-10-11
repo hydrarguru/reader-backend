@@ -1,8 +1,8 @@
 import express from "express";
-import { getAll, getOne, insertOne } from "../db/database.js";
+import { insertOne } from "../db/database.js";
 import { validateUUID, validateVote } from "../util/validate.js";
 import type { Post } from "../types/PostType.js";
-import { votePost, getUserVotes } from "../functions/postFunctions.js";
+import { votePost, getUserVotes, getPosts, getPost } from "../functions/postFunctions.js";
 import { requireAuth } from "../functions/authFunctions.js";
 import { getUser } from "../functions/userFunctions.js";
 
@@ -25,7 +25,7 @@ export const PostRouter = express.Router();
  *                 $ref: '#/components/schemas/Post'
  */
 PostRouter.get("/post/all", async (req, res) => {
-  const posts = await getAll("Posts");
+  const posts = await getPosts();
   res.send(posts);
 });
 
@@ -105,7 +105,7 @@ PostRouter.get("/post/:id", async (req, res) => {
     res.status(400).send("Invalid UUID.");
     return;
   } else {
-    const post = await getOne("Posts", "post_id", id);
+    const post = await getPost(id);
     if (post === null) {
       res.status(404).send("Post not found.");
       return;
@@ -141,11 +141,8 @@ PostRouter.get("/post/:id", async (req, res) => {
  */
 PostRouter.get("/community/:community_id/post/all", async (req, res) => {
   const community_id = req.params.community_id;
-  const posts = (await getAll("Posts")) as Post[];
-  const communityPosts = posts.filter(
-    (post) => post.community_id === community_id
-  );
-  res.status(200).send(communityPosts);
+  const posts = await getPosts(community_id);
+  res.status(200).send(posts);
 });
 
 /**
@@ -226,7 +223,7 @@ PostRouter.post("/post/create", requireAuth, async (req, res) => {
       post_score: 0,
     };
     await insertOne("Posts", newPost);
-    res.status(201).send({ message: "Post created.", post: newPost });
+    res.status(201).send({ message: "Post created.", post: { ...newPost, comment_count: 0 } });
   } catch (err) {
     console.error(err);
     res.status(500).send({ message: "Error creating post." });

@@ -1,4 +1,4 @@
-// End-to-end smoke test for auth, SQL injection, voting and foreign key behaviour.
+// End-to-end smoke test for auth, SQL injection, voting, comments and foreign key behaviour.
 //
 // Start the server first (with shouldGenerateTables = true on a fresh database), then:
 //   bun scripts/smoke-test.ts
@@ -128,7 +128,7 @@ async function main() {
     body: { community_id: communityId, post_title: injectionTitle, post_content: "Body with 'quotes'", post_author: "someone_else" },
     token,
   });
-  check("post create with a token succeeds (201)", post.status === 201, post);
+  check("post create with a token succeeds (201) with comment_count 0", post.status === 201 && post.json?.post?.comment_count === 0, post);
   const postId: string | undefined = post.json?.post?.post_id;
   const fetchedPost = await call("GET", `/post/${postId}`);
   check("injection string is stored as plain text", fetchedPost.json?.post?.post_title === injectionTitle, fetchedPost.json?.post?.post_title);
@@ -171,6 +171,57 @@ async function main() {
   const parallel = await Promise.all(Array.from({ length: 10 }, () => vote(-1)));
   check("10 parallel downvotes from one user count once (score = 0)", parallel.every((r) => r.status === 200) && (await scoreOf()) === 0, await scoreOf());
 
+  console.log("\nComments");
+  const emptyComments = await call("GET", `/post/${postId}/comments`);
+  check("a post without comments lists an empty array (200)", emptyComments.status === 200 && Array.isArray(emptyComments.json) && emptyComments.json.length === 0, emptyComments);
+  const commentsMissingPost = await call("GET", `/post/${crypto.randomUUID()}/comments`);
+  check("listing comments on a missing post is rejected (404)", commentsMissingPost.status === 404, commentsMissingPost);
+  const commentsBadId = await call("GET", "/post/not-a-uuid/comments");
+  check("listing comments with a bad post id is rejected (400)", commentsBadId.status === 400, commentsBadId);
+  const commentNoToken = await call("POST", `/post/${postId}/comments`, { body: { comment_content: "Hi" } });
+  check("commenting without a token is rejected (401)", commentNoToken.status === 401, commentNoToken);
+  const blankComment = await call("POST", `/post/${postId}/comments`, { body: { comment_content: "   " }, token });
+  check("a blank comment is rejected (400)", blankComment.status === 400, blankComment);
+  const longComment = await call("POST", `/post/${postId}/comments`, { body: { comment_content: "x".repeat(256) }, token });
+  check("a comment over 255 characters is rejected (400)", longComment.status === 400, longComment);
+  const commentMissingPost = await call("POST", `/post/${crypto.randomUUID()}/comments`, { body: { comment_content: "Hi" }, token });
+  check("commenting on a missing post is rejected (404)", commentMissingPost.status === 404, commentMissingPost);
+  const comment = await call("POST", `/post/${postId}/comments`, {
+    body: { comment_content: `  ${injectionTitle}  `, comment_author: "someone_else" },
+    token,
+  });
+  check("commenting with a token succeeds (201)", comment.status === 201 && !!comment.json?.comment?.created_at, comment);
+  const commentId: string | undefined = comment.json?.comment?.comment_id;
+  check("comment_author comes from the token, not the request body", comment.json?.comment?.comment_author === username, comment.json);
+  check("comment content is trimmed and stored as plain text", comment.json?.comment?.comment_content === injectionTitle, comment.json);
+  const countOf = async () => (await call("GET", `/post/${postId}`)).json?.post?.comment_count;
+  check("post comment_count is 1 after one comment", (await countOf()) === 1, await countOf());
+  const otherComment = await call("POST", `/post/${postId}/comments`, { body: { comment_content: "Second" }, token: otherToken });
+  const allPosts = await call("GET", "/post/all");
+  check("GET /post/all includes comment_count (2)", allPosts.json?.find((p: any) => p.post_id === postId)?.comment_count === 2, allPosts.json?.find((p: any) => p.post_id === postId));
+  const communityPosts = await call("GET", `/community/${communityId}/post/all`);
+  check("community post list includes comment_count (2)", communityPosts.json?.length === 1 && communityPosts.json[0]?.comment_count === 2, communityPosts.json);
+  const otherCommentId: string | undefined = otherComment.json?.comment?.comment_id;
+  const listed = await call("GET", `/post/${postId}/comments`);
+  // created_at has one-second precision, so only the order of the timestamps is checked.
+  const listedTimes = listed.json?.map((c: any) => Date.parse(c.created_at)) ?? [];
+  check(
+    "both comments are listed, oldest first",
+    listed.json?.length === 2 && [commentId, otherCommentId].every((id) => listed.json.some((c: any) => c.comment_id === id)) && listedTimes[0] <= listedTimes[1],
+    listed.json
+  );
+  const deleteNoToken = await call("DELETE", `/comment/${commentId}`);
+  check("deleting a comment without a token is rejected (401)", deleteNoToken.status === 401, deleteNoToken);
+  const deleteOthers = await call("DELETE", `/comment/${commentId}`, { token: otherToken });
+  check("deleting someone else's comment is rejected (403)", deleteOthers.status === 403, deleteOthers);
+  const deleteOwn = await call("DELETE", `/comment/${commentId}`, { token });
+  check("deleting your own comment succeeds (200)", deleteOwn.status === 200, deleteOwn);
+  const deleteAgain = await call("DELETE", `/comment/${commentId}`, { token });
+  check("deleting it again is rejected (404)", deleteAgain.status === 404, deleteAgain);
+  const afterDelete = await call("GET", `/post/${postId}/comments`);
+  check("comment_count drops to 1 after a delete", (await countOf()) === 1, await countOf());
+  check("the deleted comment is no longer listed", afterDelete.json?.length === 1 && afterDelete.json[0]?.comment_id === otherCommentId, afterDelete.json);
+
   console.log("\nCascading delete");
   const deleted = await call("DELETE", `/community/${communityId}`, { token });
   check("community delete succeeds (200)", deleted.status === 200, deleted);
@@ -181,6 +232,11 @@ async function main() {
     replacements: { postId },
   });
   check("the post's votes were deleted with it", Number(leftoverVotes?.n) === 0, leftoverVotes);
+  const [leftoverComments] = await Client.query<{ n: number }>("SELECT COUNT(*) AS n FROM Comments WHERE post_id = :postId", {
+    type: QueryTypes.SELECT,
+    replacements: { postId },
+  });
+  check("the post's comments were deleted with it", Number(leftoverComments?.n) === 0, leftoverComments);
 
   await Client.query("DELETE FROM Users WHERE username IN (:usernames)", { replacements: { usernames: [username, `smoke2_${runId}`] } });
 

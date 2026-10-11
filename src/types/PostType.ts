@@ -6,6 +6,7 @@ export type Post = {
     post_image_url?: string,
     post_content: string,
     post_score: number,
+    comment_count?: number,
     created_at?: Date,
     modified_at?: Date
 };

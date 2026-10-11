@@ -92,6 +92,25 @@ export const swaggerDef = {
             post_image_url: { type: "string", nullable: true },
             post_content: { type: "string" },
             post_score: { type: "integer" },
+            comment_count: {
+              type: "integer",
+              description: "Number of comments on the post.",
+            },
+            created_at: { type: "string", format: "date-time" },
+            modified_at: { type: "string", format: "date-time" },
+          },
+        },
+        Comment: {
+          type: "object",
+          properties: {
+            comment_id: { type: "string", format: "uuid" },
+            post_id: { type: "string", format: "uuid" },
+            comment_author: {
+              type: "string",
+              description: "Username of the author.",
+            },
+            comment_content: { type: "string" },
+            comment_score: { type: "integer" },
             created_at: { type: "string", format: "date-time" },
             modified_at: { type: "string", format: "date-time" },
           },
@@ -117,6 +136,10 @@ export const swaggerDef = {
       {
         name: "Post",
         description: "Post related endpoints.",
+      },
+      {
+        name: "Comment",
+        description: "Comment related endpoints.",
       },
       {
         name: "Community",
