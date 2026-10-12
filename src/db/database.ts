@@ -4,6 +4,8 @@ import { postsTable } from "../models/Post.js";
 import { communitiesTable } from "../models/Community.js";
 import { commentsTable } from "../models/Comments.js";
 import { postVotesTable } from "../models/PostVote.js";
+import { adminsTable } from "../models/Admin.js";
+import { communityRulesTable } from "../models/CommunityRule.js";
 import type { User } from '../types/UserType.js';
 import type { Post } from '../types/PostType.js';
 import type { Community } from '../types/CommunityType.js';
@@ -18,13 +20,23 @@ const DB_USER = process.env.DB_USER || 'root';
 const DB_PASSWORD = process.env.DB_PASSWORD || 'password';
 const DB_PORT = process.env.DB_PORT || '3306';
 
+const LOCAL_HOSTS = ['localhost', '127.0.0.1', '::1'];
+
+// Says which database the server talks to, for the startup log. Never includes credentials.
+export function describeDatabase(): string {
+    const where = LOCAL_HOSTS.includes(DB_HOST) ? 'local' : 'production';
+    return `${where} database (${DB_NAME} on ${DB_HOST}:${DB_PORT})`;
+}
+
 // Order matters: a table's foreign keys can only reference tables created before it.
 const databaseSchema = [
     usersTable,
     communitiesTable,
     postsTable,
     commentsTable,
-    postVotesTable
+    postVotesTable,
+    adminsTable,
+    communityRulesTable
 ];
 
 export const Client = new Sequelize({

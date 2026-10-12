@@ -1,12 +1,14 @@
 import express from "express";
-import { getAll, getOne } from "../db/database.js";
-import { validateCommunityName, validateUUID } from "../util/validate.js";
+import { validateCommunityChanges, validateCommunityName, validateUUID } from "../util/validate.js";
 import {
   createCommunity,
   deleteCommunity,
+  getAllCommunities,
+  getCommunityBy,
+  updateCommunity,
 } from "../functions/communityFunctions.js";
 import type { Community } from "../types/CommunityType.js";
-import { requireAuth } from "../functions/authFunctions.js";
+import { requireAdmin, requireAuth } from "../functions/authFunctions.js";
 
 export const CommunityRouter = express.Router();
 
@@ -27,7 +29,7 @@ export const CommunityRouter = express.Router();
  *                 $ref: '#/components/schemas/Community'
  */
 CommunityRouter.get("/community/all", async (req, res) => {
-  const communities = await getAll("Communities");
+  const communities = await getAllCommunities();
   res.status(200).send(communities);
 });
 
@@ -65,7 +67,7 @@ CommunityRouter.get("/community/:name", async (req, res) => {
     res.status(400).send("Invalid community name.");
     return;
   } else {
-    const community = await getOne("Communities", "community_name", name);
+    const community = await getCommunityBy("community_name", name);
     if (community === null) {
       res.status(404).send("Community not found.");
       return;
@@ -80,7 +82,7 @@ CommunityRouter.get("/community/:name", async (req, res) => {
  * /community/create:
  *   post:
  *     tags: [Community]
- *     description: Create a community. Responds with plain text.
+ *     description: Create a community. Admins only. Responds with plain text.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -113,10 +115,16 @@ CommunityRouter.get("/community/:name", async (req, res) => {
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Message'
+ *       403:
+ *         description: The user is not an admin.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
  *       500:
  *         description: Error creating community.
  */
-CommunityRouter.post("/community/create", requireAuth, async (req, res) => {
+CommunityRouter.post("/community/create", requireAuth, requireAdmin, async (req, res) => {
   const { community_id, community_name, community_desc, community_image_url } = req.body ?? {};
   if (!community_name || !validateCommunityName(community_name)) {
     res.status(400).send("Community name not provided or invalid.");
@@ -150,7 +158,7 @@ CommunityRouter.post("/community/create", requireAuth, async (req, res) => {
  * /community/{id}:
  *   delete:
  *     tags: [Community]
- *     description: Delete a community by ID. Its posts (and their comments) are deleted too. Responds with plain text.
+ *     description: Delete a community by ID. Its posts (and their comments) are deleted too. Admins only. Responds with plain text.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -172,10 +180,16 @@ CommunityRouter.post("/community/create", requireAuth, async (req, res) => {
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Message'
+ *       403:
+ *         description: The user is not an admin.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
  *       500:
  *         description: Error deleting community.
  */
-CommunityRouter.delete("/community/:id", requireAuth, async (req, res) => {
+CommunityRouter.delete("/community/:id", requireAuth, requireAdmin, async (req, res) => {
   const id = req.params.id;
   if (!validateUUID(id)) {
     res.status(400).send("Invalid community ID.");
@@ -187,5 +201,108 @@ CommunityRouter.delete("/community/:id", requireAuth, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).send("Error deleting community.");
+  }
+});
+
+/**
+ * @openapi
+ * /community/{id}:
+ *   patch:
+ *     tags: [Community]
+ *     description: Change a community's description, banner image URL or rules. Admins only. Fields left out stay as they are.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: UUID of the community
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               community_desc:
+ *                 type: string
+ *                 description: 1-255 characters after trimming.
+ *               community_image_url:
+ *                 type: string
+ *                 nullable: true
+ *                 description: An http(s) URL of at most 255 characters. Empty string or null removes the banner.
+ *               community_rules:
+ *                 type: array
+ *                 maxItems: 20
+ *                 description: Replaces all of the community's rules, in this order.
+ *                 items:
+ *                   $ref: '#/components/schemas/CommunityRule'
+ *     responses:
+ *       200:
+ *         description: Community updated.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 community:
+ *                   $ref: '#/components/schemas/Community'
+ *       400:
+ *         description: Invalid community ID or invalid fields.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ *       401:
+ *         description: Missing or invalid token.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ *       403:
+ *         description: The user is not an admin.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ *       404:
+ *         description: Community not found.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ *       500:
+ *         description: Error updating community.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ */
+CommunityRouter.patch("/community/:id", requireAuth, requireAdmin, async (req, res) => {
+  const id = req.params.id;
+  if (!validateUUID(id)) {
+    res.status(400).send({ message: "Invalid community ID." });
+    return;
+  }
+  const changes = validateCommunityChanges(req.body);
+  if (typeof changes === "string") {
+    res.status(400).send({ message: changes });
+    return;
+  }
+  try {
+    const community = await updateCommunity(id, changes);
+    if (community === null) {
+      res.status(404).send({ message: "Community not found." });
+      return;
+    }
+    res.send({ message: "Community updated.", community });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({ message: "Error updating community." });
   }
 });

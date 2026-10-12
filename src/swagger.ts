@@ -46,6 +46,10 @@ export const swaggerDef = {
                 'JWT, valid for 7 days. Send as "Authorization: Bearer <token>".',
             },
             user_id: { type: "string", format: "uuid" },
+            is_admin: {
+              type: "boolean",
+              description: "Whether the user may create, edit and delete communities.",
+            },
           },
         },
         TokenPayload: {
@@ -75,8 +79,20 @@ export const swaggerDef = {
             community_name: { type: "string" },
             community_desc: { type: "string" },
             community_image_url: { type: "string", nullable: true },
+            community_rules: {
+              type: "array",
+              items: { $ref: "#/components/schemas/CommunityRule" },
+            },
             created_at: { type: "string", format: "date-time" },
             modified_at: { type: "string", format: "date-time" },
+          },
+        },
+        CommunityRule: {
+          type: "object",
+          required: ["rule_title"],
+          properties: {
+            rule_title: { type: "string", description: "1-100 characters." },
+            rule_desc: { type: "string", description: "At most 500 characters." },
           },
         },
         Post: {

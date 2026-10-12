@@ -1,4 +1,4 @@
-// End-to-end smoke test for auth, SQL injection, voting, comments and foreign key behaviour.
+// End-to-end smoke test for auth, admins, SQL injection, voting, comments and foreign key behaviour.
 //
 // Start the server first (with shouldGenerateTables = true on a fresh database), then:
 //   bun scripts/smoke-test.ts
@@ -75,13 +75,15 @@ async function main() {
     { type: QueryTypes.SELECT, replacements: { schema: DB_NAME } }
   );
   const fk = (table: string, ref: string) => fks.filter((f) => f.TABLE_NAME === table && f.REFERENCED_TABLE_NAME === ref);
-  check("exactly 6 foreign keys (no duplicates)", fks.length === 6, fks.length);
+  check("exactly 8 foreign keys (no duplicates)", fks.length === 8, fks.length);
   check("Posts → Communities cascades on delete", fk("Posts", "Communities")[0]?.DELETE_RULE === "CASCADE", fk("Posts", "Communities"));
   check("Posts → Users cascades on update", fk("Posts", "Users")[0]?.UPDATE_RULE === "CASCADE", fk("Posts", "Users"));
   check("Comments → Posts cascades on delete", fk("Comments", "Posts")[0]?.DELETE_RULE === "CASCADE", fk("Comments", "Posts"));
   check("Comments → Users cascades on update", fk("Comments", "Users")[0]?.UPDATE_RULE === "CASCADE", fk("Comments", "Users"));
   check("PostVotes → Posts cascades on delete", fk("PostVotes", "Posts")[0]?.DELETE_RULE === "CASCADE", fk("PostVotes", "Posts"));
   check("PostVotes → Users cascades on delete", fk("PostVotes", "Users")[0]?.DELETE_RULE === "CASCADE", fk("PostVotes", "Users"));
+  check("Admins → Users cascades on delete", fk("Admins", "Users")[0]?.DELETE_RULE === "CASCADE", fk("Admins", "Users"));
+  check("CommunityRules → Communities cascades on delete", fk("CommunityRules", "Communities")[0]?.DELETE_RULE === "CASCADE", fk("CommunityRules", "Communities"));
 
   console.log("\nSign-up");
   const signup = await call("POST", "/user/create", { body: { username, password, email: `${username}@example.com` } });
@@ -106,6 +108,7 @@ async function main() {
   const login = await call("POST", "/auth/login", { body: { username, password } });
   check("correct password returns a token (200)", login.status === 200 && typeof login.json?.token === "string", login);
   check("login returns the user's id", login.json?.user_id === userId, login.json);
+  check("login says a new user is not an admin", login.json?.is_admin === false, login.json);
   const token: string = login.json?.token ?? "";
   const decoded = await call("GET", `/auth/decode?token=${encodeURIComponent(token)}`);
   check("token decodes to the user's id with an expiry", decoded.json?.id === userId && typeof decoded.json?.exp === "number", decoded.json);
@@ -115,13 +118,70 @@ async function main() {
   check("community create without a token is rejected (401)", noToken.status === 401, noToken);
   const badToken = await call("POST", "/community/create", { body: { community_name: communityName, community_desc: "Smoke test" }, token: "not.a.token" });
   check("community create with a bad token is rejected (401)", badToken.status === 401, badToken);
+  const notAdmin = await call("POST", "/community/create", { body: { community_name: communityName, community_desc: "Smoke test" }, token });
+  check("community create by a non-admin is rejected (403)", notAdmin.status === 403, notAdmin);
+  await Client.query("INSERT INTO Admins (user_id) VALUES (:userId)", { replacements: { userId } });
+  const adminLogin = await call("POST", "/auth/login", { body: { username, password } });
+  check("login says an admin is an admin", adminLogin.json?.is_admin === true, adminLogin.json);
   const community = await call("POST", "/community/create", { body: { community_name: communityName, community_desc: "Smoke test" }, token });
-  check("community create with a token succeeds (201)", community.status === 201, community);
+  check("community create by an admin succeeds (201)", community.status === 201, community);
   const fetchedCommunity = await call("GET", `/community/${communityName}`);
   const communityId: string | undefined = fetchedCommunity.json?.community?.community_id;
   check("community can be fetched by name", !!communityId, fetchedCommunity);
   const postNoToken = await call("POST", "/post/create", { body: { community_id: communityId, post_title: "x", post_content: "x" } });
   check("post create without a token is rejected (401)", postNoToken.status === 401, postNoToken);
+
+  const otherUsername = `smoke2_${runId}`;
+  await call("POST", "/user/create", { body: { username: otherUsername, password, email: `${otherUsername}@example.com` } });
+  const otherToken: string = (await call("POST", "/auth/login", { body: { username: otherUsername, password } })).json?.token ?? "";
+
+  console.log("\nEditing communities");
+  const edit = (body: unknown, editToken = token, id = communityId) => call("PATCH", `/community/${id}`, { body, token: editToken });
+  const editNoToken = await call("PATCH", `/community/${communityId}`, { body: { community_desc: "x" } });
+  check("editing without a token is rejected (401)", editNoToken.status === 401, editNoToken);
+  const editNotAdmin = await edit({ community_desc: "x" }, otherToken);
+  check("editing by a non-admin is rejected (403)", editNotAdmin.status === 403, editNotAdmin);
+  const editMissing = await edit({ community_desc: "x" }, token, crypto.randomUUID());
+  check("editing a missing community is rejected (404)", editMissing.status === 404, editMissing);
+  const editBadId = await edit({ community_desc: "x" }, token, "not-a-uuid");
+  check("editing with a bad id is rejected (400)", editBadId.status === 400, editBadId);
+  const editEmpty = await edit({});
+  check("an edit with nothing to change is rejected (400)", editEmpty.status === 400, editEmpty);
+  const editBlankDesc = await edit({ community_desc: "   " });
+  check("a blank description is rejected (400)", editBlankDesc.status === 400, editBlankDesc);
+  const editBadUrl = await edit({ community_image_url: "javascript:alert(1)" });
+  check("a non-http banner URL is rejected (400)", editBadUrl.status === 400, editBadUrl);
+  const editBadRule = await edit({ community_rules: [{ rule_title: "  " }] });
+  check("a rule without a title is rejected (400)", editBadRule.status === 400, editBadRule);
+  const editTooMany = await edit({ community_rules: Array.from({ length: 21 }, (_, i) => ({ rule_title: `Rule ${i}` })) });
+  check("more than 20 rules are rejected (400)", editTooMany.status === 400, editTooMany);
+  const rules = [
+    { rule_title: " Be kind ", rule_desc: "No insults." },
+    { rule_title: injectionTitle },
+  ];
+  const edited = await edit({ community_desc: " New description ", community_image_url: "https://example.com/banner.png", community_rules: rules });
+  check(
+    "an admin can change description, banner and rules (200)",
+    edited.status === 200 &&
+      edited.json?.community?.community_desc === "New description" &&
+      edited.json?.community?.community_image_url === "https://example.com/banner.png",
+    edited
+  );
+  const expectedRules = [{ rule_title: "Be kind", rule_desc: "No insults." }, { rule_title: injectionTitle, rule_desc: "" }];
+  check("rules are trimmed and kept in order", JSON.stringify(edited.json?.community?.community_rules) === JSON.stringify(expectedRules), edited.json?.community?.community_rules);
+  const byName = await call("GET", `/community/${communityName}`);
+  check("GET /community/{name} includes the rules", JSON.stringify(byName.json?.community?.community_rules) === JSON.stringify(expectedRules), byName.json);
+  const all = await call("GET", "/community/all");
+  check("GET /community/all includes the rules", JSON.stringify(all.json?.find((c: any) => c.community_id === communityId)?.community_rules) === JSON.stringify(expectedRules), all.json?.find((c: any) => c.community_id === communityId));
+  const partial = await edit({ community_image_url: "" });
+  check(
+    "an empty banner URL removes the banner and leaves the rest alone",
+    partial.status === 200 && partial.json?.community?.community_image_url === null && partial.json?.community?.community_desc === "New description" && partial.json?.community?.community_rules?.length === 2,
+    partial.json
+  );
+  const noRules = await edit({ community_rules: [] });
+  check("an empty rules list removes all rules", noRules.status === 200 && noRules.json?.community?.community_rules?.length === 0, noRules.json);
+  await edit({ community_rules: rules });
 
   console.log("\nPosts and SQL injection");
   const post = await call("POST", "/post/create", {
@@ -162,9 +222,6 @@ async function main() {
   const myVotesAfter = await call("GET", "/post/votes", { token });
   check("removed vote is no longer listed", !myVotesAfter.json?.some((v: any) => v.post_id === postId), myVotesAfter.json);
 
-  const otherUsername = `smoke2_${runId}`;
-  await call("POST", "/user/create", { body: { username: otherUsername, password, email: `${otherUsername}@example.com` } });
-  const otherToken: string = (await call("POST", "/auth/login", { body: { username: otherUsername, password } })).json?.token ?? "";
   await vote(1);
   await vote(1, otherToken);
   check("two users upvoting gives a score of 2", (await scoreOf()) === 2, await scoreOf());
@@ -223,6 +280,8 @@ async function main() {
   check("the deleted comment is no longer listed", afterDelete.json?.length === 1 && afterDelete.json[0]?.comment_id === otherCommentId, afterDelete.json);
 
   console.log("\nCascading delete");
+  const deleteNotAdmin = await call("DELETE", `/community/${communityId}`, { token: otherToken });
+  check("community delete by a non-admin is rejected (403)", deleteNotAdmin.status === 403, deleteNotAdmin);
   const deleted = await call("DELETE", `/community/${communityId}`, { token });
   check("community delete succeeds (200)", deleted.status === 200, deleted);
   const gone = await call("GET", `/post/${postId}`);
@@ -237,6 +296,11 @@ async function main() {
     replacements: { postId },
   });
   check("the post's comments were deleted with it", Number(leftoverComments?.n) === 0, leftoverComments);
+  const [leftoverRules] = await Client.query<{ n: number }>("SELECT COUNT(*) AS n FROM CommunityRules WHERE community_id = :communityId", {
+    type: QueryTypes.SELECT,
+    replacements: { communityId },
+  });
+  check("the community's rules were deleted with it", Number(leftoverRules?.n) === 0, leftoverRules);
 
   await Client.query("DELETE FROM Users WHERE username IN (:usernames)", { replacements: { usernames: [username, `smoke2_${runId}`] } });
 

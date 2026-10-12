@@ -3,6 +3,7 @@ import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import type { NextFunction, Request, Response } from 'express';
 import 'dotenv/config';
+import { checkIfExists } from '../db/database.js';
 
 const scryptAsync = promisify(scrypt) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
 const KEY_LENGTH = 64;
@@ -62,5 +63,18 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
         return;
     }
     res.locals.userId = payload.id;
+    next();
+}
+
+export async function isAdmin(userId: string): Promise<boolean> {
+    return checkIfExists('Admins', 'user_id', userId);
+}
+
+// Use after requireAuth. Rejects users who aren't in the Admins table.
+export async function requireAdmin(req: Request, res: Response, next: NextFunction) {
+    if (!(await isAdmin(res.locals.userId))) {
+        res.status(403).send({ message: 'Only admins can do this.' });
+        return;
+    }
     next();
 }

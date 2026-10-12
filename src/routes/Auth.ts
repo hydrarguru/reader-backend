@@ -1,5 +1,5 @@
 import express from "express";
-import { generateJWT, verifyJWT, decodeJWT } from "../functions/authFunctions.js";
+import { generateJWT, verifyJWT, decodeJWT, isAdmin } from "../functions/authFunctions.js";
 import { authenticateUser } from "../functions/userFunctions.js";
 export const AuthRouter = express.Router();
 /**
@@ -58,7 +58,7 @@ AuthRouter.post("/auth/login", async (req, res) => {
             res.status(401).send({ message: "Invalid username or password." });
             return;
         }
-        res.status(200).send({ token: await generateJWT(userId), user_id: userId });
+        res.status(200).send({ token: await generateJWT(userId), user_id: userId, is_admin: await isAdmin(userId) });
     } catch (err) {
         console.error(err);
         res.status(500).send({ message: "Error logging in." });
