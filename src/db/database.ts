@@ -20,6 +20,14 @@ const DB_USER = process.env.DB_USER || 'root';
 const DB_PASSWORD = process.env.DB_PASSWORD || 'password';
 const DB_PORT = process.env.DB_PORT || '3306';
 
+const LOCAL_HOSTS = ['localhost', '127.0.0.1', '::1'];
+
+// Says which database the server talks to, for the startup log. Never includes credentials.
+export function describeDatabase(): string {
+    const where = LOCAL_HOSTS.includes(DB_HOST) ? 'local' : 'production';
+    return `${where} database (${DB_NAME} on ${DB_HOST}:${DB_PORT})`;
+}
+
 // Order matters: a table's foreign keys can only reference tables created before it.
 const databaseSchema = [
     usersTable,

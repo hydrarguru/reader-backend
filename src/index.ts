@@ -3,7 +3,7 @@ import cors from "cors";
 import swaggerJSDoc from "swagger-jsdoc";
 import swaggerUi from "swagger-ui-express";
 import { swaggerDef } from "./swagger.js";
-import { checkConnection, generateTables } from "./db/database.js";
+import { checkConnection, describeDatabase, generateTables } from "./db/database.js";
 import { UserRouter } from "./routes/User.js";
 import { PostRouter } from "./routes/Post.js";
 import { CommunityRouter } from "./routes/Community.js";
@@ -46,4 +46,5 @@ app.get("/", (req, res) => {
 
 app.listen(port, () => {
   console.log(`Listening on port ${port}.`);
+  console.log(`Using the ${describeDatabase()}.`);
 });
