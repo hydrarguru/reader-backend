@@ -54,7 +54,7 @@ export async function decodeJWT(token: string): Promise<jose.JWTPayload | null> 
 
 // Rejects requests without a valid "Authorization: Bearer <token>" header.
 // On success the user's id is available as res.locals.userId.
-export async function requireAuth(req: Request, res: Response, next: NextFunction) {
+export async function requireAuth<P>(req: Request<P>, res: Response, next: NextFunction) {
     const header = req.headers.authorization;
     const token = header?.startsWith('Bearer ') ? header.slice('Bearer '.length) : undefined;
     const payload = token ? await decodeJWT(token) : null;
@@ -71,7 +71,7 @@ export async function isAdmin(userId: string): Promise<boolean> {
 }
 
 // Use after requireAuth. Rejects users who aren't in the Admins table.
-export async function requireAdmin(req: Request, res: Response, next: NextFunction) {
+export async function requireAdmin<P>(req: Request<P>, res: Response, next: NextFunction) {
     if (!(await isAdmin(res.locals.userId))) {
         res.status(403).send({ message: 'Only admins can do this.' });
         return;
