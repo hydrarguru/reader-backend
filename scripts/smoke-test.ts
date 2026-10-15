@@ -1,7 +1,7 @@
 // End-to-end smoke test for auth, admins, SQL injection, voting, comments and foreign key behaviour.
 //
 // Run `pnpm migrate` and start the server first, then:
-//   bun scripts/smoke-test.ts
+//   pnpm smoke-test
 //
 // Uses DB_* and SERVER_PORT from .env. Set BASE_URL to test a different server.
 // Only runs against a local database and a local server, so it can't touch production.

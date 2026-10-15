@@ -2,7 +2,7 @@ import * as jose from 'jose'
 import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import type { NextFunction, Request, Response } from 'express';
-import 'dotenv/config';
+import '../env.js';
 import { checkIfExists } from '../db/database.js';
 
 const scryptAsync = promisify(scrypt) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;

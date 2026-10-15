@@ -2,8 +2,8 @@
 // so it only ever runs once per database.
 //
 //   pnpm migrate                 apply pending migrations to the local database
-//   pnpm migrate --production    apply pending migrations to a non-local database
-//   pnpm migrate:status          list applied and pending migrations
+//   pnpm migrate --prod          apply pending migrations to the production database in .env
+//   pnpm migrate:status          list applied and pending migrations (add --prod for production)
 //   pnpm migrate:create <name>   add a new, empty migration file
 //
 // Migrations only go forwards: to undo one, write a new migration that reverses it.
@@ -68,8 +68,8 @@ function hasStatements(sql: string): boolean {
 }
 
 async function up(args: string[]) {
-  if (!isLocalDatabase() && !args.includes("--production")) {
-    console.error(`Refusing to migrate the ${describeDatabase()}. Pass --production if you mean it.`);
+  if (!isLocalDatabase() && !args.includes("--prod")) {
+    console.error(`Refusing to migrate the ${describeDatabase()}. Pass --prod if you mean it.`);
     process.exitCode = 1;
     return;
   }

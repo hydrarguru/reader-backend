@@ -1,11 +1,9 @@
+import "../env.js";
 import { Sequelize, QueryTypes, type Options } from "sequelize";
 import type { User } from '../types/UserType.js';
 import type { Post } from '../types/PostType.js';
 import type { Community } from '../types/CommunityType.js';
 import { Comment } from "../types/CommentsType.js";
-
-import dotenv from "dotenv";
-dotenv.config();
 
 const DB_HOST = process.env.DB_HOST || 'localhost';
 const DB_NAME = process.env.DB_NAME || 'fullstack';
