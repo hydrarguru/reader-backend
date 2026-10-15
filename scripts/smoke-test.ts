@@ -5,8 +5,9 @@
 //
 // Uses DB_* and SERVER_PORT from .env. Set BASE_URL to test a different server.
 // Only runs against a local database and a local server, so it can't touch production.
-import { QueryTypes } from "sequelize";
-import { Client } from "../src/db/database.js";
+import { count, eq, inArray, sql } from "drizzle-orm";
+import { db } from "../src/db/database.js";
+import { admins, comments, communityRules, postVotes, users } from "../src/db/schema.js";
 
 const LOCAL_HOSTS = ["localhost", "127.0.0.1", "::1"];
 const BASE_URL = process.env.BASE_URL ?? `http://localhost:${process.env.SERVER_PORT || 10000}`;
@@ -69,11 +70,10 @@ async function main() {
   }
 
   console.log("Foreign keys");
-  const fks = await Client.query<{ TABLE_NAME: string; REFERENCED_TABLE_NAME: string; DELETE_RULE: string; UPDATE_RULE: string }>(
-    `SELECT TABLE_NAME, REFERENCED_TABLE_NAME, DELETE_RULE, UPDATE_RULE
-     FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = :schema`,
-    { type: QueryTypes.SELECT, replacements: { schema: DB_NAME } }
-  );
+  const [fks] = (await db.execute(
+    sql`SELECT TABLE_NAME, REFERENCED_TABLE_NAME, DELETE_RULE, UPDATE_RULE
+        FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = ${DB_NAME}`
+  )) as unknown as [{ TABLE_NAME: string; REFERENCED_TABLE_NAME: string; DELETE_RULE: string; UPDATE_RULE: string }[]];
   const fk = (table: string, ref: string) => fks.filter((f) => f.TABLE_NAME === table && f.REFERENCED_TABLE_NAME === ref);
   check("exactly 8 foreign keys (no duplicates)", fks.length === 8, fks.length);
   check("Posts → Communities cascades on delete", fk("Posts", "Communities")[0]?.DELETE_RULE === "CASCADE", fk("Posts", "Communities"));
@@ -94,10 +94,7 @@ async function main() {
   check("rejects a duplicate username (409)", duplicate.status === 409, duplicate);
   const missing = await call("POST", "/user/create", { body: { username: `x_${username}` } });
   check("rejects missing fields (400)", missing.status === 400, missing);
-  const [stored] = await Client.query<{ password: string }>("SELECT password FROM Users WHERE username = :username", {
-    type: QueryTypes.SELECT,
-    replacements: { username },
-  });
+  const [stored] = await db.select({ password: users.password }).from(users).where(eq(users.username, username));
   check("password is stored hashed, not in plain text", !!stored && stored.password.startsWith("scrypt$") && stored.password !== password, stored?.password?.slice(0, 12));
 
   console.log("\nLogin");
@@ -120,7 +117,7 @@ async function main() {
   check("community create with a bad token is rejected (401)", badToken.status === 401, badToken);
   const notAdmin = await call("POST", "/community/create", { body: { community_name: communityName, community_desc: "Smoke test" }, token });
   check("community create by a non-admin is rejected (403)", notAdmin.status === 403, notAdmin);
-  await Client.query("INSERT INTO Admins (user_id) VALUES (:userId)", { replacements: { userId } });
+  await db.insert(admins).values({ user_id: userId! });
   const adminLogin = await call("POST", "/auth/login", { body: { username, password } });
   check("login says an admin is an admin", adminLogin.json?.is_admin === true, adminLogin.json);
   const community = await call("POST", "/community/create", { body: { community_name: communityName, community_desc: "Smoke test" }, token });
@@ -194,7 +191,7 @@ async function main() {
   check("injection string is stored as plain text", fetchedPost.json?.post?.post_title === injectionTitle, fetchedPost.json?.post?.post_title);
   check("post_author comes from the token, not the request body", fetchedPost.json?.post?.post_author === username, fetchedPost.json?.post?.post_author);
   check("optional post_image_url is NULL, not 'undefined'", fetchedPost.json?.post?.post_image_url === null, fetchedPost.json?.post?.post_image_url);
-  const usersTable = await Client.query("SHOW TABLES LIKE 'Users'", { type: QueryTypes.SELECT });
+  const [usersTable] = (await db.execute(sql`SHOW TABLES LIKE 'Users'`)) as unknown as [unknown[]];
   check("Users table still exists", usersTable.length === 1);
 
   console.log("\nVoting");
@@ -286,23 +283,14 @@ async function main() {
   check("community delete succeeds (200)", deleted.status === 200, deleted);
   const gone = await call("GET", `/post/${postId}`);
   check("the community's post was deleted with it (404)", gone.status === 404, gone);
-  const [leftoverVotes] = await Client.query<{ n: number }>("SELECT COUNT(*) AS n FROM PostVotes WHERE post_id = :postId", {
-    type: QueryTypes.SELECT,
-    replacements: { postId },
-  });
+  const [leftoverVotes] = await db.select({ n: count() }).from(postVotes).where(eq(postVotes.post_id, postId!));
   check("the post's votes were deleted with it", Number(leftoverVotes?.n) === 0, leftoverVotes);
-  const [leftoverComments] = await Client.query<{ n: number }>("SELECT COUNT(*) AS n FROM Comments WHERE post_id = :postId", {
-    type: QueryTypes.SELECT,
-    replacements: { postId },
-  });
+  const [leftoverComments] = await db.select({ n: count() }).from(comments).where(eq(comments.post_id, postId!));
   check("the post's comments were deleted with it", Number(leftoverComments?.n) === 0, leftoverComments);
-  const [leftoverRules] = await Client.query<{ n: number }>("SELECT COUNT(*) AS n FROM CommunityRules WHERE community_id = :communityId", {
-    type: QueryTypes.SELECT,
-    replacements: { communityId },
-  });
+  const [leftoverRules] = await db.select({ n: count() }).from(communityRules).where(eq(communityRules.community_id, communityId!));
   check("the community's rules were deleted with it", Number(leftoverRules?.n) === 0, leftoverRules);
 
-  await Client.query("DELETE FROM Users WHERE username IN (:usernames)", { replacements: { usernames: [username, `smoke2_${runId}`] } });
+  await db.delete(users).where(inArray(users.username, [username, `smoke2_${runId}`]));
 
   console.log(`\n${passed} passed, ${failed} failed`);
 }
@@ -313,6 +301,6 @@ try {
   failed++;
   console.error("\nSmoke test crashed:", err);
 } finally {
-  await Client.close();
+  await db.$client.end();
   process.exit(failed === 0 ? 0 : 1);
 }

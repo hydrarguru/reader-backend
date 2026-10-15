@@ -1,8 +1,7 @@
 import express from "express";
-import { insertOne } from "../db/database.js";
 import { validateUUID, validateVote } from "../util/validate.js";
 import type { Post } from "../types/PostType.js";
-import { votePost, getUserVotes, getPosts, getPost } from "../functions/postFunctions.js";
+import { votePost, getUserVotes, getPosts, getPost, createPost } from "../functions/postFunctions.js";
 import { requireAuth } from "../functions/authFunctions.js";
 import { getUser } from "../functions/userFunctions.js";
 
@@ -222,7 +221,7 @@ PostRouter.post("/post/create", requireAuth, async (req, res) => {
       post_content: post_content,
       post_score: 0,
     };
-    await insertOne("Posts", newPost);
+    await createPost(newPost);
     res.status(201).send({ message: "Post created.", post: { ...newPost, comment_count: 0 } });
   } catch (err) {
     console.error(err);

@@ -3,7 +3,9 @@ import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import type { NextFunction, Request, Response } from 'express';
 import '../env.js';
-import { checkIfExists } from '../db/database.js';
+import { eq } from 'drizzle-orm';
+import { db } from '../db/database.js';
+import { admins } from '../db/schema.js';
 
 const scryptAsync = promisify(scrypt) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
 const KEY_LENGTH = 64;
@@ -67,7 +69,8 @@ export async function requireAuth<P>(req: Request<P>, res: Response, next: NextF
 }
 
 export async function isAdmin(userId: string): Promise<boolean> {
-    return checkIfExists('Admins', 'user_id', userId);
+    const [admin] = await db.select({ user_id: admins.user_id }).from(admins).where(eq(admins.user_id, userId));
+    return admin !== undefined;
 }
 
 // Use after requireAuth. Rejects users who aren't in the Admins table.

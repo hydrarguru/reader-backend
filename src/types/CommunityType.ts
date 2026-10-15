@@ -6,9 +6,9 @@ export type CommunityRule = {
 export type Community = {
   community_id: string | undefined;
   community_name: string;
-  community_image_url?: string | undefined;
+  community_image_url?: string | null;
   community_desc: string;
   community_rules?: CommunityRule[];
-  created_at?: Date;
-  modified_at?: Date;
+  created_at?: Date | null;
+  modified_at?: Date | null;
 };

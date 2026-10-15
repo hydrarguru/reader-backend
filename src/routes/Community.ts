@@ -134,7 +134,7 @@ CommunityRouter.post("/community/create", requireAuth, requireAdmin, async (req,
     res.status(400).send("Community description not provided.");
     return;
   }
-  // Only known fields are copied: insertOne uses the object's keys as column names.
+  // Only known fields are copied, so the request body can't set anything else.
   const newCommunity: Community = {
     community_id: community_id && validateUUID(community_id) ? community_id : crypto.randomUUID(),
     community_name: community_name,

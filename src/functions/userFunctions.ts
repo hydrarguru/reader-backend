@@ -1,54 +1,66 @@
+import { eq } from 'drizzle-orm'
 import type { OmittedUser, User } from '../types/UserType.js'
-import { insertOne, checkForDuplicate, deleteOne, updateOne, checkIfExists, getOne, getAll } from '../db/database.js'
+import { db } from '../db/database.js'
+import { users } from '../db/schema.js'
 import { hashPassword, verifyPassword } from './authFunctions.js'
 
 export type CreateUserResult = { ok: true, user: OmittedUser } | { ok: false, reason: string };
 
+// The fields that are safe to send to clients.
+const publicColumns = { user_id: users.user_id, username: users.username };
+
+async function userExists(column: typeof users.user_id | typeof users.username | typeof users.email, value: string): Promise<boolean> {
+    const [user] = await db.select({ user_id: users.user_id }).from(users).where(eq(column, value)).limit(1);
+    return user !== undefined;
+}
+
 export async function createUser(newUser: User): Promise<CreateUserResult> {
-    if(await checkForDuplicate('Users', 'username', newUser.username)) {
+    if(await userExists(users.username, newUser.username)) {
         return { ok: false, reason: 'Username already exists.' };
     }
-    if(await checkForDuplicate('Users', 'email', newUser.email)) {
+    if(await userExists(users.email, newUser.email)) {
         return { ok: false, reason: 'There is already an account associated with this email.' };
     }
-    const user: User = { ...newUser, password: await hashPassword(newUser.password) };
-    await insertOne('Users', user);
+    const user = {
+        user_id: newUser.user_id ?? crypto.randomUUID(),
+        username: newUser.username,
+        password: await hashPassword(newUser.password),
+        email: newUser.email,
+    };
+    await db.insert(users).values(user);
     console.log(`User created: ${user.username}`);
-    const { email, password, created_at, modified_at, ...omittedUser } = user;
-    return { ok: true, user: omittedUser };
+    return { ok: true, user: { user_id: user.user_id, username: user.username } };
 };
 
 // Returns the user's id if the username/password pair is valid, otherwise null.
 export async function authenticateUser(username: string, password: string): Promise<string | null> {
-    const user = await getOne('Users', 'username', username) as User | null;
-    if (!user || !user.user_id || !(await verifyPassword(password, user.password))) {
+    const [user] = await db.select({ user_id: users.user_id, password: users.password }).from(users).where(eq(users.username, username));
+    if (!user || !(await verifyPassword(password, user.password))) {
         return null;
     }
     return user.user_id;
 };
 
 export async function getUser(userId: string): Promise<OmittedUser | null> {
-    if(await checkIfExists('Users', 'user_id', userId)) {
-        const user = await getOne('Users', 'user_id', userId) as User;
-        const { email, password, created_at, modified_at, ...omittedUser } = user;
-        return omittedUser;
-    }
-    else {
+    const [user] = await db.select(publicColumns).from(users).where(eq(users.user_id, userId));
+    if (user === undefined) {
         console.error(`User with id: ${userId} does not exist.`);
         return null;
     }
+    return user;
 };
 
 export async function getAllUsers(): Promise<OmittedUser[]> {
-    const users = await getAll('Users') as User[];
-    return users.map(({ email, password, created_at, modified_at, ...user }) => user);
+    return db.select(publicColumns).from(users).limit(100);
 };
 
 export async function editUser(userId: string, editedUser: User) {
-    if(await checkIfExists('Users', 'user_id', userId)) {
-        await updateOne('Users', 'user_id', userId, 'username', editedUser.username);
-        await updateOne('Users', 'user_id', userId, 'password', await hashPassword(editedUser.password));
-        await updateOne('Users', 'user_id', userId, 'email', editedUser.email);
+    if(await userExists(users.user_id, userId)) {
+        await db.update(users).set({
+            username: editedUser.username,
+            password: await hashPassword(editedUser.password),
+            email: editedUser.email,
+        }).where(eq(users.user_id, userId));
     }
     else {
         console.error('User does not exist.');
@@ -56,11 +68,11 @@ export async function editUser(userId: string, editedUser: User) {
 };
 
 export async function deleteUser(userId: string) {
-    if(await checkIfExists('Users', 'user_id', userId)) {
-        await deleteOne('Users', 'user_id', userId);
+    if(await userExists(users.user_id, userId)) {
+        await db.delete(users).where(eq(users.user_id, userId));
         console.log('User deleted');
     }
     else {
         console.error('Could not delete user.');
     }
-};  
+};
