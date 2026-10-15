@@ -1,3 +1,4 @@
+import "./env.js";
 import express from "express";
 import cors from "cors";
 import swaggerJSDoc from "swagger-jsdoc";
@@ -9,9 +10,6 @@ import { PostRouter } from "./routes/Post.js";
 import { CommunityRouter } from "./routes/Community.js";
 import { AuthRouter } from "./routes/Auth.js";
 import { CommentRouter } from "./routes/Comment.js";
-
-import dotenv from "dotenv";
-dotenv.config();
 
 const port = process.env.SERVER_PORT || 10000;
 const corsConfig = cors({ origin: "*" });
