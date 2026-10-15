@@ -10,3 +10,13 @@ A REST API featuring JWT login and CRUD operations for users, communities, posts
 - JWT auth via jose.
 - Swagger for API documentation.
 - Hosted on Fly.io.
+
+## Database migrations
+Schema and data changes live as numbered SQL files in `migrations/`. Each one runs once per database and is recorded in the `SchemaMigrations` table.
+
+- `pnpm migrate:create <name>` adds a new, empty migration file to fill in.
+- `pnpm migrate` applies pending migrations to the local database.
+- `pnpm migrate:status` lists which migrations have been applied.
+- `pnpm migrate --production` is required to apply them to a non-local database. On Fly, run `fly ssh console -C "node dist/db/migrate.js up --production"`.
+
+Migrations only go forwards. Don't edit one that has already been applied; write a new one instead.
