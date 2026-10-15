@@ -8,4 +8,4 @@ if (process.argv.includes("--prod")) {
   process.env.NODE_ENV = "production";
 }
 
-dotenv.config({ path: [`.env.${process.env.NODE_ENV || "development"}`, ".env"] });
+dotenv.config({ path: [`.env.${process.env.NODE_ENV || "development"}`, ".env"], quiet: true });
