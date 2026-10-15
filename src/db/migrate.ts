@@ -12,15 +12,15 @@ import { createHash } from "node:crypto";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { Sequelize, QueryTypes } from "sequelize";
-import { connectionOptions, describeDatabase, isLocalDatabase } from "./database.js";
+import mysql, { type Connection, type RowDataPacket } from "mysql2/promise";
+import { connectionConfig, describeDatabase, isLocalDatabase } from "./database.js";
 
 // Resolves to the same folder from both src/db and dist/db.
 const MIGRATIONS_DIR = fileURLToPath(new URL("../../migrations/", import.meta.url));
 const MIGRATION_FILE = /^(\d{4})_[a-z0-9_]+\.sql$/;
 
 type Migration = { name: string; sql: string; checksum: string };
-type AppliedMigration = { name: string; checksum: string; applied_at: Date };
+type AppliedMigration = RowDataPacket & { name: string; checksum: string; applied_at: Date };
 
 async function readMigrations(): Promise<Migration[]> {
   const files = (await readdir(MIGRATIONS_DIR)).filter((file) => MIGRATION_FILE.test(file)).sort();
@@ -33,11 +33,11 @@ async function readMigrations(): Promise<Migration[]> {
 }
 
 // A separate connection, because a migration file may hold several statements.
-function connect(): Sequelize {
-  return new Sequelize({ ...connectionOptions, dialectOptions: { multipleStatements: true } });
+function connect(): Promise<Connection> {
+  return mysql.createConnection({ ...connectionConfig, multipleStatements: true });
 }
 
-async function readApplied(db: Sequelize): Promise<Map<string, AppliedMigration>> {
+async function readApplied(db: Connection): Promise<Map<string, AppliedMigration>> {
   await db.query(`
     CREATE TABLE IF NOT EXISTS SchemaMigrations (
       name VARCHAR(255) PRIMARY KEY,
@@ -45,9 +45,7 @@ async function readApplied(db: Sequelize): Promise<Map<string, AppliedMigration>
       applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
-  const rows = await db.query<AppliedMigration>("SELECT name, checksum, applied_at FROM SchemaMigrations", {
-    type: QueryTypes.SELECT,
-  });
+  const [rows] = await db.query<AppliedMigration[]>("SELECT name, checksum, applied_at FROM SchemaMigrations");
   return new Map(rows.map((row) => [row.name, row]));
 }
 
@@ -74,7 +72,7 @@ async function up(args: string[]) {
     return;
   }
 
-  const db = connect();
+  const db = await connect();
   try {
     const migrations = await readMigrations();
     const applied = await readApplied(db);
@@ -102,19 +100,17 @@ async function up(args: string[]) {
         process.exitCode = 1;
         return;
       }
-      await db.query("INSERT INTO SchemaMigrations (name, checksum) VALUES (:name, :checksum)", {
-        replacements: { name: migration.name, checksum: migration.checksum },
-      });
+      await db.query("INSERT INTO SchemaMigrations (name, checksum) VALUES (?, ?)", [migration.name, migration.checksum]);
       console.log(`  applied ${migration.name}`);
     }
     console.log(`Applied ${pending.length} migration${pending.length === 1 ? "" : "s"}.`);
   } finally {
-    await db.close();
+    await db.end();
   }
 }
 
 async function status() {
-  const db = connect();
+  const db = await connect();
   try {
     const migrations = await readMigrations();
     const applied = await readApplied(db);
@@ -126,7 +122,7 @@ async function status() {
     }
     warnAboutDrift(migrations, applied);
   } finally {
-    await db.close();
+    await db.end();
   }
 }
 

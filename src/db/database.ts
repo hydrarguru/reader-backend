@@ -26,8 +26,7 @@ export function describeDatabase(): string {
     return `${where} database (${DB_NAME} on ${DB_HOST}:${DB_PORT})`;
 }
 
-// Shared with the migration runner, which needs its own connection.
-export const connectionOptions: Options = {
+const sequelizeOptions: Options = {
     dialect: "mysql",
     host: DB_HOST,
     database: DB_NAME,
@@ -37,16 +36,19 @@ export const connectionOptions: Options = {
     logging: false
 };
 
-export const Client = new Sequelize(connectionOptions);
+export const Client = new Sequelize(sequelizeOptions);
 
-// Drizzle runs on its own mysql2 pool while queries move over from Sequelize.
-const pool = mysql.createPool({
+// Shared with the migration runner, which needs its own connection.
+export const connectionConfig: mysql.ConnectionOptions = {
     host: DB_HOST,
     database: DB_NAME,
     user: DB_USER,
     password: DB_PASSWORD,
     port: parseInt(DB_PORT),
-});
+};
+
+// Drizzle runs on its own mysql2 pool while queries move over from Sequelize.
+const pool = mysql.createPool(connectionConfig);
 
 export const db = drizzle({ client: pool, schema, mode: "default" });
 
