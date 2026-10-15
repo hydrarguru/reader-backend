@@ -23,7 +23,7 @@ export async function getPost(postId: string): Promise<Post | null> {
     return post ?? null;
 }
 
-async function postExists(postId: string): Promise<boolean> {
+export async function postExists(postId: string): Promise<boolean> {
     const [post] = await db.select({ post_id: posts.post_id }).from(posts).where(eq(posts.post_id, postId));
     return post !== undefined;
 }
