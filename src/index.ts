@@ -3,7 +3,7 @@ import cors from "cors";
 import swaggerJSDoc from "swagger-jsdoc";
 import swaggerUi from "swagger-ui-express";
 import { swaggerDef } from "./swagger.js";
-import { checkConnection, describeDatabase, generateTables } from "./db/database.js";
+import { checkConnection, describeDatabase } from "./db/database.js";
 import { UserRouter } from "./routes/User.js";
 import { PostRouter } from "./routes/Post.js";
 import { CommunityRouter } from "./routes/Community.js";
@@ -14,7 +14,6 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const port = process.env.SERVER_PORT || 10000;
-const shouldGenerateTables = false;
 const corsConfig = cors({ origin: "*" });
 const app = express();
 const swaggerSpec = swaggerJSDoc(swaggerDef);
@@ -31,14 +30,6 @@ app.use(CommentRouter);
 
 checkConnection();
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-
-console.info(
-  `${shouldGenerateTables ? "Generating" : "Not generating"} tables...`,
-);
-
-if (shouldGenerateTables) {
-  await generateTables();
-}
 
 app.get("/", (req, res) => {
   res.redirect("/api-docs");

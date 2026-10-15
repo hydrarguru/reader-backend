@@ -1,6 +1,6 @@
 // End-to-end smoke test for auth, admins, SQL injection, voting, comments and foreign key behaviour.
 //
-// Start the server first (with shouldGenerateTables = true on a fresh database), then:
+// Run `pnpm migrate` and start the server first, then:
 //   bun scripts/smoke-test.ts
 //
 // Uses DB_* and SERVER_PORT from .env. Set BASE_URL to test a different server.

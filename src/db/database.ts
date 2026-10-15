@@ -1,11 +1,4 @@
-import { Sequelize, QueryTypes } from "sequelize";
-import { usersTable } from "../models/User.js";
-import { postsTable } from "../models/Post.js";
-import { communitiesTable } from "../models/Community.js";
-import { commentsTable } from "../models/Comments.js";
-import { postVotesTable } from "../models/PostVote.js";
-import { adminsTable } from "../models/Admin.js";
-import { communityRulesTable } from "../models/CommunityRule.js";
+import { Sequelize, QueryTypes, type Options } from "sequelize";
 import type { User } from '../types/UserType.js';
 import type { Post } from '../types/PostType.js';
 import type { Community } from '../types/CommunityType.js';
@@ -22,24 +15,18 @@ const DB_PORT = process.env.DB_PORT || '3306';
 
 const LOCAL_HOSTS = ['localhost', '127.0.0.1', '::1'];
 
+export function isLocalDatabase(): boolean {
+    return LOCAL_HOSTS.includes(DB_HOST);
+}
+
 // Says which database the server talks to, for the startup log. Never includes credentials.
 export function describeDatabase(): string {
-    const where = LOCAL_HOSTS.includes(DB_HOST) ? 'local' : 'production';
+    const where = isLocalDatabase() ? 'local' : 'production';
     return `${where} database (${DB_NAME} on ${DB_HOST}:${DB_PORT})`;
 }
 
-// Order matters: a table's foreign keys can only reference tables created before it.
-const databaseSchema = [
-    usersTable,
-    communitiesTable,
-    postsTable,
-    commentsTable,
-    postVotesTable,
-    adminsTable,
-    communityRulesTable
-];
-
-export const Client = new Sequelize({
+// Shared with the migration runner, which needs its own connection.
+export const connectionOptions: Options = {
     dialect: "mysql",
     host: DB_HOST,
     database: DB_NAME,
@@ -47,7 +34,9 @@ export const Client = new Sequelize({
     password: DB_PASSWORD,
     port: parseInt(DB_PORT),
     logging: false
-});
+};
+
+export const Client = new Sequelize(connectionOptions);
 
 export async function checkConnection() {
     try {
@@ -58,12 +47,6 @@ export async function checkConnection() {
         console.error('Unable to connect to the database:', error);
     }
 }
-
-export async function generateTables() {
-    for (const table of databaseSchema) {
-        await Client.query(table);
-    }
-};
 
 export async function checkForDuplicate(table: string, column: string, value: string | number): Promise<boolean> {
     const [results] = await Client.query(`SELECT * FROM ${table} WHERE ${column} = :value`, {
