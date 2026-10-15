@@ -1,10 +1,14 @@
+import { createRequire } from "node:module";
+
+const pkg = createRequire(import.meta.url)("../package.json") as { version: string };
+
 export const swaggerDef = {
   failOnErrors: true, // Whether or not to throw when parsing errors. Defaults to false.
   definition: {
     openapi: "3.0.3",
     info: {
       title: "Reader API",
-      version: "1.0.1",
+      version: pkg.version,
       termsOfService: "https://www.github.com/hydrarguru/reader-backend",
       contact: {
         name: "Contact information",
