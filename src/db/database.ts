@@ -1,5 +1,8 @@
 import "../env.js";
 import { Sequelize, QueryTypes, type Options } from "sequelize";
+import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2/promise";
+import * as schema from "./schema.js";
 import type { User } from '../types/UserType.js';
 import type { Post } from '../types/PostType.js';
 import type { Community } from '../types/CommunityType.js';
@@ -35,6 +38,17 @@ export const connectionOptions: Options = {
 };
 
 export const Client = new Sequelize(connectionOptions);
+
+// Drizzle runs on its own mysql2 pool while queries move over from Sequelize.
+const pool = mysql.createPool({
+    host: DB_HOST,
+    database: DB_NAME,
+    user: DB_USER,
+    password: DB_PASSWORD,
+    port: parseInt(DB_PORT),
+});
+
+export const db = drizzle({ client: pool, schema, mode: "default" });
 
 export async function checkConnection() {
     try {
