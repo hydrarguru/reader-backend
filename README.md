@@ -5,7 +5,7 @@ A REST API featuring JWT login and CRUD operations for users, communities, posts
 
 ## Tech Stack:
 - TypeScript + Express.js.
-- Sequelize ORM.
+- Drizzle ORM.
 - MySQL Database.
 - JWT auth via jose.
 - Swagger for API documentation.
@@ -20,6 +20,8 @@ Schema and data changes live as numbered SQL files in `migrations/`. Each one ru
 - `pnpm migrate --prod` applies them to the production database in `.env`. It refuses to touch a non-local database without `--prod`. On Fly, run `fly ssh console -C "node dist/db/migrate.js up --prod"`.
 
 Migrations only go forwards. Don't edit one that has already been applied; write a new one instead.
+
+Queries go through [Drizzle](https://orm.drizzle.team), which reads the tables from `src/db/schema.ts`. The migrations own the actual schema, so when a migration changes a table, update `schema.ts` to match.
 
 ## Development
 Uses [pnpm](https://pnpm.io) and Node.js. `pnpm install`, then `pnpm dev` starts the server with reload on save.
