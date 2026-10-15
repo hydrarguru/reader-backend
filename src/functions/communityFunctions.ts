@@ -1,34 +1,42 @@
-import { QueryTypes } from 'sequelize';
+import { asc, eq, inArray } from 'drizzle-orm';
 import type { Community, CommunityRule } from '../types/CommunityType.js'
-import { Client, insertOne, checkForDuplicate, deleteOne } from '../db/database.js'
+import { db } from '../db/database.js'
+import { communities, communityRules } from '../db/schema.js'
 
 export async function createCommunity(newCommunity: Community): Promise<boolean> {
-    if (await checkForDuplicate('Communities', 'community_name', newCommunity.community_name)) {
+    const [duplicate] = await db.select({ community_id: communities.community_id }).from(communities)
+        .where(eq(communities.community_name, newCommunity.community_name));
+    if (duplicate !== undefined) {
         console.error('Community name already exists');
         return false;
     }
     else {
-        await insertOne('Communities', newCommunity);
+        await db.insert(communities).values({
+            community_id: newCommunity.community_id ?? crypto.randomUUID(),
+            community_name: newCommunity.community_name,
+            community_desc: newCommunity.community_desc,
+            community_image_url: newCommunity.community_image_url,
+        });
         console.log('Community created');
         console.table(newCommunity);
         return true;
-    }    
+    }
 }
 
 export async function deleteCommunity(community_id: string) {
-    await deleteOne('Communities', 'community_id', community_id);
+    await db.delete(communities).where(eq(communities.community_id, community_id));
     console.log('Community deleted');
 }
 
 // Adds each community's rules, in order, as community_rules.
-async function withRules(communities: Community[]): Promise<Community[]> {
-    if (communities.length === 0) return communities;
-    const rules = await Client.query<CommunityRule & { community_id: string }>(
-        `SELECT community_id, rule_title, rule_desc FROM CommunityRules
-         WHERE community_id IN (:ids) ORDER BY community_id, rule_order`,
-        { type: QueryTypes.SELECT, replacements: { ids: communities.map((c) => c.community_id) } }
-    );
-    return communities.map((community) => ({
+async function withRules(found: Community[]): Promise<Community[]> {
+    if (found.length === 0) return found;
+    const rules = await db
+        .select({ community_id: communityRules.community_id, rule_title: communityRules.rule_title, rule_desc: communityRules.rule_desc })
+        .from(communityRules)
+        .where(inArray(communityRules.community_id, found.map((c) => c.community_id!)))
+        .orderBy(asc(communityRules.community_id), asc(communityRules.rule_order));
+    return found.map((community) => ({
         ...community,
         community_rules: rules
             .filter((rule) => rule.community_id === community.community_id)
@@ -37,17 +45,13 @@ async function withRules(communities: Community[]): Promise<Community[]> {
 }
 
 export async function getAllCommunities(): Promise<Community[]> {
-    const communities = await Client.query<Community>('SELECT * FROM Communities LIMIT 100', { type: QueryTypes.SELECT });
-    return withRules(communities);
+    return withRules(await db.select().from(communities).limit(100));
 }
 
 export async function getCommunityBy(column: 'community_name' | 'community_id', value: string): Promise<Community | null> {
-    const communities = await Client.query<Community>(`SELECT * FROM Communities WHERE ${column} = :value`, {
-        type: QueryTypes.SELECT,
-        replacements: { value },
-    });
-    if (communities.length === 0) return null;
-    return (await withRules(communities))[0];
+    const found = await db.select().from(communities).where(eq(communities[column], value));
+    if (found.length === 0) return null;
+    return (await withRules(found))[0];
 }
 
 export type CommunityChanges = {
@@ -59,28 +63,27 @@ export type CommunityChanges = {
 // Applies the given changes; fields left out stay as they are. community_rules replaces all rules.
 // Returns the updated community, or null if it doesn't exist.
 export async function updateCommunity(community_id: string, changes: CommunityChanges): Promise<Community | null> {
-    const found = await Client.transaction(async (transaction) => {
-        const [existing] = await Client.query(
-            'SELECT community_id FROM Communities WHERE community_id = :community_id FOR UPDATE',
-            { type: QueryTypes.SELECT, replacements: { community_id }, transaction }
-        );
+    const found = await db.transaction(async (tx) => {
+        const [existing] = await tx.select({ community_id: communities.community_id }).from(communities)
+            .where(eq(communities.community_id, community_id))
+            .for('update');
         if (existing === undefined) return false;
 
-        const columns = (['community_desc', 'community_image_url'] as const).filter((column) => changes[column] !== undefined);
-        if (columns.length > 0) {
-            await Client.query(
-                `UPDATE Communities SET ${columns.map((column) => `${column} = :${column}`).join(', ')} WHERE community_id = :community_id`,
-                { replacements: { ...Object.fromEntries(columns.map((column) => [column, changes[column]])), community_id }, transaction }
-            );
+        const { community_desc, community_image_url } = changes;
+        if (community_desc !== undefined || community_image_url !== undefined) {
+            // Drizzle leaves undefined fields out of the SET clause.
+            await tx.update(communities).set({ community_desc, community_image_url })
+                .where(eq(communities.community_id, community_id));
         }
         if (changes.community_rules !== undefined) {
-            await Client.query('DELETE FROM CommunityRules WHERE community_id = :community_id', { replacements: { community_id }, transaction });
-            for (const [rule_order, rule] of changes.community_rules.entries()) {
-                await Client.query(
-                    `INSERT INTO CommunityRules (community_id, rule_order, rule_title, rule_desc)
-                     VALUES (:community_id, :rule_order, :rule_title, :rule_desc)`,
-                    { replacements: { community_id, rule_order, ...rule }, transaction }
-                );
+            await tx.delete(communityRules).where(eq(communityRules.community_id, community_id));
+            if (changes.community_rules.length > 0) {
+                await tx.insert(communityRules).values(changes.community_rules.map((rule, rule_order) => ({
+                    community_id,
+                    rule_order,
+                    rule_title: rule.rule_title,
+                    rule_desc: rule.rule_desc,
+                })));
             }
         }
         return true;
