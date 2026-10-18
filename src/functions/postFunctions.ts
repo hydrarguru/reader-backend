@@ -42,14 +42,9 @@ export async function createPost(newPost: Post) {
     console.table(newPost);
 }
 
-export async function deletePost(postId: string) {
-    if (await postExists(postId)) {
-        await db.delete(posts).where(eq(posts.post_id, postId));
-        console.log('Post deleted');
-    }
-    else {
-        console.error('Could not delete post.');
-    }
+export async function deletePost(postId: string): Promise<void> {
+    await db.delete(posts).where(eq(posts.post_id, postId));
+    console.log('Post deleted');
 }
 
 // Sets the user's vote on a post (1 = upvote, -1 = downvote, 0 = remove vote) and adjusts
@@ -90,12 +85,20 @@ export async function getUserVotes(userId: string): Promise<PostVote[]> {
         .where(eq(postVotes.user_id, userId)) as Promise<PostVote[]>;
 }
 
-export async function editPost(postId: string, editedPost: Post) {
-    if (await postExists(postId)) {
-        await db.update(posts).set({ post_title: editedPost.post_title }).where(eq(posts.post_id, postId));
-        console.log('Post edited');
+export type PostChanges = {
+    post_title?: string;
+    post_content?: string;
+    post_image_url?: string | null;
+};
+
+// Applies the given changes; fields left out stay as they are.
+// Returns the updated post, or null if it doesn't exist.
+export async function updatePost(postId: string, changes: PostChanges): Promise<Post | null> {
+    if (!(await postExists(postId))) {
+        return null;
     }
-    else {
-        console.error('Could not edit post.');
-    }
+    // Drizzle leaves undefined fields out of the SET clause.
+    await db.update(posts).set(changes).where(eq(posts.post_id, postId));
+    console.log('Post edited');
+    return getPost(postId);
 }

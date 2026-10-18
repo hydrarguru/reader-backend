@@ -3,6 +3,15 @@
 All notable changes to this project. Follows [Semantic Versioning](https://semver.org/).
 Versions before 1.12.2 were assigned retroactively from the commit history.
 
+## [1.13.0] - 2026-10-18
+### Added
+- `PATCH /user/{id}`: change your own username, email or password (the password needs `current_password`).
+- `DELETE /user/{id}`: delete your own account, or any account as an admin. Deletes the user's posts and comments and takes their votes out of post scores.
+- `PATCH /post/{id}` (author only) and `DELETE /post/{id}` (author or admin).
+- `PATCH /comment/{comment_id}` (author only).
+### Changed
+- Admins can now delete anyone's comments.
+
 ## [1.12.2] - 2026-10-15
 ### Changed
 - Project declared stable; version set to 1.12.2 (continues from 0.11.2).

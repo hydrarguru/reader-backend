@@ -1,4 +1,4 @@
-// End-to-end smoke test for auth, admins, SQL injection, voting, comments and foreign key behaviour.
+// End-to-end smoke test for auth, admins, SQL injection, voting, comments, editing and deleting, and foreign key behaviour.
 //
 // Run `pnpm migrate` and start the server first, then:
 //   pnpm smoke-test
@@ -7,7 +7,7 @@
 // Only runs against a local database and a local server, so it can't touch production.
 import { count, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../src/db/database.js";
-import { admins, comments, communityRules, postVotes, users } from "../src/db/schema.js";
+import { admins, comments, communityRules, posts, postVotes, users } from "../src/db/schema.js";
 
 const LOCAL_HOSTS = ["localhost", "127.0.0.1", "::1"];
 const BASE_URL = process.env.BASE_URL ?? `http://localhost:${process.env.SERVER_PORT || 10000}`;
@@ -130,7 +130,9 @@ async function main() {
 
   const otherUsername = `smoke2_${runId}`;
   await call("POST", "/user/create", { body: { username: otherUsername, password, email: `${otherUsername}@example.com` } });
-  const otherToken: string = (await call("POST", "/auth/login", { body: { username: otherUsername, password } })).json?.token ?? "";
+  const otherLogin = await call("POST", "/auth/login", { body: { username: otherUsername, password } });
+  const otherToken: string = otherLogin.json?.token ?? "";
+  const otherUserId: string | undefined = otherLogin.json?.user_id;
 
   console.log("\nEditing communities");
   const edit = (body: unknown, editToken = token, id = communityId) => call("PATCH", `/community/${id}`, { body, token: editToken });
@@ -276,6 +278,145 @@ async function main() {
   check("comment_count drops to 1 after a delete", (await countOf()) === 1, await countOf());
   check("the deleted comment is no longer listed", afterDelete.json?.length === 1 && afterDelete.json[0]?.comment_id === otherCommentId, afterDelete.json);
 
+  console.log("\nEditing comments");
+  const editComment = (body: unknown, editToken = otherToken, id = otherCommentId) => call("PATCH", `/comment/${id}`, { body, token: editToken });
+  const editCommentNoToken = await call("PATCH", `/comment/${otherCommentId}`, { body: { comment_content: "x" } });
+  check("editing a comment without a token is rejected (401)", editCommentNoToken.status === 401, editCommentNoToken);
+  const editCommentOthers = await editComment({ comment_content: "x" }, token);
+  check("editing someone else's comment is rejected (403), even as an admin", editCommentOthers.status === 403, editCommentOthers);
+  const editCommentBlank = await editComment({ comment_content: "   " });
+  check("a blank comment edit is rejected (400)", editCommentBlank.status === 400, editCommentBlank);
+  const editCommentMissing = await editComment({ comment_content: "x" }, otherToken, crypto.randomUUID());
+  check("editing a missing comment is rejected (404)", editCommentMissing.status === 404, editCommentMissing);
+  const editedComment = await editComment({ comment_content: `  Edited ${injectionTitle}  ` });
+  check(
+    "editing your own comment succeeds (200), trimmed",
+    editedComment.status === 200 && editedComment.json?.comment?.comment_content === `Edited ${injectionTitle}` && editedComment.json?.comment?.comment_author === otherUsername,
+    editedComment
+  );
+  const listedEdited = await call("GET", `/post/${postId}/comments`);
+  check("the edit shows when listing comments", listedEdited.json?.[0]?.comment_content === `Edited ${injectionTitle}`, listedEdited.json);
+
+  console.log("\nEditing posts");
+  const editPost = (body: unknown, editToken = token, id = postId) => call("PATCH", `/post/${id}`, { body, token: editToken });
+  const editPostNoToken = await call("PATCH", `/post/${postId}`, { body: { post_title: "x" } });
+  check("editing a post without a token is rejected (401)", editPostNoToken.status === 401, editPostNoToken);
+  const editPostOthers = await editPost({ post_title: "x" }, otherToken);
+  check("editing someone else's post is rejected (403)", editPostOthers.status === 403, editPostOthers);
+  const editPostMissing = await editPost({ post_title: "x" }, token, crypto.randomUUID());
+  check("editing a missing post is rejected (404)", editPostMissing.status === 404, editPostMissing);
+  const editPostBadId = await editPost({ post_title: "x" }, token, "not-a-uuid");
+  check("editing a post with a bad id is rejected (400)", editPostBadId.status === 400, editPostBadId);
+  const editPostEmpty = await editPost({ post_author: otherUsername });
+  check("a post edit with nothing editable is rejected (400)", editPostEmpty.status === 400, editPostEmpty);
+  const editPostLongTitle = await editPost({ post_title: "x".repeat(51) });
+  check("a title over 50 characters is rejected (400)", editPostLongTitle.status === 400, editPostLongTitle);
+  const editPostBlank = await editPost({ post_content: "  " });
+  check("blank post content is rejected (400)", editPostBlank.status === 400, editPostBlank);
+  const editPostBadUrl = await editPost({ post_image_url: "javascript:alert(1)" });
+  check("a non-http image URL is rejected (400)", editPostBadUrl.status === 400, editPostBadUrl);
+  const editedPost = await editPost({ post_title: " New title ", post_content: "New body", post_image_url: "https://example.com/a.png" });
+  check(
+    "the author can change title, content and image (200)",
+    editedPost.status === 200 &&
+      editedPost.json?.post?.post_title === "New title" &&
+      editedPost.json?.post?.post_content === "New body" &&
+      editedPost.json?.post?.post_image_url === "https://example.com/a.png" &&
+      editedPost.json?.post?.post_author === username &&
+      editedPost.json?.post?.comment_count === 1,
+    editedPost
+  );
+  const partialPost = await editPost({ post_image_url: "" });
+  check(
+    "an empty image URL removes the image and leaves the rest alone",
+    partialPost.status === 200 && partialPost.json?.post?.post_image_url === null && partialPost.json?.post?.post_title === "New title",
+    partialPost.json
+  );
+
+  console.log("\nDeleting posts and comments as an admin");
+  const otherPost = await call("POST", "/post/create", { body: { community_id: communityId, post_title: "Other", post_content: "x" }, token: otherToken });
+  const otherPostId: string | undefined = otherPost.json?.post?.post_id;
+  const ownPost = await call("POST", "/post/create", { body: { community_id: communityId, post_title: "Mine", post_content: "x" }, token: otherToken });
+  const ownPostId: string | undefined = ownPost.json?.post?.post_id;
+  const deletePostNoToken = await call("DELETE", `/post/${otherPostId}`);
+  check("deleting a post without a token is rejected (401)", deletePostNoToken.status === 401, deletePostNoToken);
+  const deletePostOthers = await call("DELETE", `/post/${postId}`, { token: otherToken });
+  check("deleting someone else's post as a non-admin is rejected (403)", deletePostOthers.status === 403, deletePostOthers);
+  const deleteOwnPost = await call("DELETE", `/post/${ownPostId}`, { token: otherToken });
+  check("deleting your own post succeeds (200)", deleteOwnPost.status === 200 && (await call("GET", `/post/${ownPostId}`)).status === 404, deleteOwnPost);
+  const deletePostAdmin = await call("DELETE", `/post/${otherPostId}`, { token });
+  check("an admin can delete someone else's post (200)", deletePostAdmin.status === 200, deletePostAdmin);
+  const deletePostAgain = await call("DELETE", `/post/${otherPostId}`, { token });
+  check("deleting it again is rejected (404)", deletePostAgain.status === 404, deletePostAgain);
+  const adminDeletesComment = await call("DELETE", `/comment/${otherCommentId}`, { token });
+  check("an admin can delete someone else's comment (200)", adminDeletesComment.status === 200, adminDeletesComment);
+
+  console.log("\nEditing users");
+  const editUser = (body: unknown, editToken = otherToken, id = otherUserId) => call("PATCH", `/user/${id}`, { body, token: editToken });
+  const editUserNoToken = await call("PATCH", `/user/${otherUserId}`, { body: { username: "x" } });
+  check("editing a user without a token is rejected (401)", editUserNoToken.status === 401, editUserNoToken);
+  const editUserOthers = await editUser({ username: `x_${runId}` }, token);
+  check("editing someone else's account is rejected (403), even as an admin", editUserOthers.status === 403, editUserOthers);
+  const editUserEmpty = await editUser({});
+  check("a user edit with nothing to change is rejected (400)", editUserEmpty.status === 400, editUserEmpty);
+  const editUserTaken = await editUser({ username });
+  check("taking another user's username is rejected (409)", editUserTaken.status === 409, editUserTaken);
+  const editEmailTaken = await editUser({ email: `${username}@example.com` });
+  check("taking another user's email is rejected (409)", editEmailTaken.status === 409, editEmailTaken);
+  const editBadEmail = await editUser({ email: "not-an-email" });
+  check("an invalid email is rejected (400)", editBadEmail.status === 400, editBadEmail);
+  const editSpacedName = await editUser({ username: "has space" });
+  check("a username with spaces is rejected (400)", editSpacedName.status === 400, editSpacedName);
+  const editPasswordNoCurrent = await editUser({ password: "new-password" });
+  check("changing the password without current_password is rejected (400)", editPasswordNoCurrent.status === 400, editPasswordNoCurrent);
+  const editPasswordWrong = await editUser({ password: "new-password", current_password: "wrong" });
+  check("changing the password with a wrong current_password is rejected (403)", editPasswordWrong.status === 403, editPasswordWrong);
+  const sameName = await editUser({ username: otherUsername, email: `${otherUsername}@example.com` });
+  check("keeping your own username and email is allowed (200)", sameName.status === 200, sameName);
+  const renamedUsername = `smoke3_${runId}`;
+  const newPassword = `new-${password}`;
+  const renamed = await editUser({ username: ` ${renamedUsername} `, email: `${renamedUsername}@example.com`, password: newPassword, current_password: password });
+  check(
+    "a user can change username, email and password (200), without email or password in the response",
+    renamed.status === 200 && renamed.json?.user?.username === renamedUsername && !("email" in (renamed.json?.user ?? {})) && !("password" in (renamed.json?.user ?? {})),
+    renamed
+  );
+  const oldLogin = await call("POST", "/auth/login", { body: { username: renamedUsername, password } });
+  check("the old password no longer works (401)", oldLogin.status === 401, oldLogin);
+  const newLogin = await call("POST", "/auth/login", { body: { username: renamedUsername, password: newPassword } });
+  check("the new username and password log in (200)", newLogin.status === 200, newLogin);
+  const renamedComment = await call("POST", `/post/${postId}/comments`, { body: { comment_content: "After rename" }, token: otherToken });
+  check("the old token keeps working after a rename", renamedComment.status === 201 && renamedComment.json?.comment?.comment_author === renamedUsername, renamedComment);
+  const renamedPost = await call("POST", "/post/create", { body: { community_id: communityId, post_title: "Before delete", post_content: "x" }, token: otherToken });
+  const renamedPostId: string | undefined = renamedPost.json?.post?.post_id;
+  const [storedPost] = await db.select({ post_author: posts.post_author }).from(posts).where(eq(posts.post_id, renamedPostId!));
+  check("posts carry the new username", storedPost?.post_author === renamedUsername, storedPost);
+
+  console.log("\nDeleting users");
+  // The other user's upvote and this user's downvote from the voting section are still in place.
+  check("before the delete, the post's score is 0 (+1 and -1)", (await scoreOf()) === 0, await scoreOf());
+  const deleteUserNoToken = await call("DELETE", `/user/${otherUserId}`);
+  check("deleting a user without a token is rejected (401)", deleteUserNoToken.status === 401, deleteUserNoToken);
+  const deleteUserOthers = await call("DELETE", `/user/${userId}`, { token: otherToken });
+  check("deleting someone else's account as a non-admin is rejected (403)", deleteUserOthers.status === 403, deleteUserOthers);
+  const deleteUserMissing = await call("DELETE", `/user/${crypto.randomUUID()}`, { token });
+  check("deleting a missing user is rejected (404)", deleteUserMissing.status === 404, deleteUserMissing);
+  const deleteSelf = await call("DELETE", `/user/${otherUserId}`, { token: otherToken });
+  check("a user can delete their own account (200)", deleteSelf.status === 200, deleteSelf);
+  check("their upvote is taken back out of the post's score (score = -1)", (await scoreOf()) === -1, await scoreOf());
+  const deletedUserPost = await call("GET", `/post/${renamedPostId}`);
+  check("their posts were deleted with them (404)", deletedUserPost.status === 404, deletedUserPost);
+  const [leftoverUserComments] = await db.select({ n: count() }).from(comments).where(eq(comments.comment_author, renamedUsername));
+  check("their comments were deleted with them", Number(leftoverUserComments?.n) === 0, leftoverUserComments);
+  const deletedLogin = await call("POST", "/auth/login", { body: { username: renamedUsername, password: newPassword } });
+  check("the deleted user can no longer log in (401)", deletedLogin.status === 401, deletedLogin);
+  const deletedToken = await call("POST", `/post/${postId}/comments`, { body: { comment_content: "Ghost" }, token: otherToken });
+  check("the deleted user's token is rejected (401)", deletedToken.status === 401, deletedToken);
+  const adminVictim = `smoke4_${runId}`;
+  const victim = await call("POST", "/user/create", { body: { username: adminVictim, password, email: `${adminVictim}@example.com` } });
+  const adminDeletesUser = await call("DELETE", `/user/${victim.json?.user?.user_id}`, { token });
+  check("an admin can delete someone else's account (200)", adminDeletesUser.status === 200, adminDeletesUser);
+
   console.log("\nCascading delete");
   const deleteNotAdmin = await call("DELETE", `/community/${communityId}`, { token: otherToken });
   check("community delete by a non-admin is rejected (403)", deleteNotAdmin.status === 403, deleteNotAdmin);
@@ -290,7 +431,7 @@ async function main() {
   const [leftoverRules] = await db.select({ n: count() }).from(communityRules).where(eq(communityRules.community_id, communityId!));
   check("the community's rules were deleted with it", Number(leftoverRules?.n) === 0, leftoverRules);
 
-  await db.delete(users).where(inArray(users.username, [username, `smoke2_${runId}`]));
+  await db.delete(users).where(inArray(users.username, [username, `smoke2_${runId}`, `smoke3_${runId}`, `smoke4_${runId}`]));
 
   console.log(`\n${passed} passed, ${failed} failed`);
 }

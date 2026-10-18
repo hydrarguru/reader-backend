@@ -39,3 +39,9 @@ export async function getComment(commentId: string): Promise<Comment | null> {
 export async function deleteComment(commentId: string): Promise<void> {
     await db.delete(comments).where(eq(comments.comment_id, commentId));
 }
+
+// Returns the updated comment, or null if it doesn't exist.
+export async function updateComment(commentId: string, content: string): Promise<Comment | null> {
+    await db.update(comments).set({ comment_content: content }).where(eq(comments.comment_id, commentId));
+    return getComment(commentId);
+}
