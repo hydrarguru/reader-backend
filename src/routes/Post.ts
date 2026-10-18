@@ -1,8 +1,8 @@
 import express from "express";
-import { validateUUID, validateVote } from "../util/validate.js";
+import { validatePostChanges, validateUUID, validateVote } from "../util/validate.js";
 import type { Post } from "../types/PostType.js";
-import { votePost, getUserVotes, getPosts, getPost, createPost } from "../functions/postFunctions.js";
-import { requireAuth } from "../functions/authFunctions.js";
+import { votePost, getUserVotes, getPosts, getPost, createPost, updatePost, deletePost } from "../functions/postFunctions.js";
+import { isAdmin, requireAuth } from "../functions/authFunctions.js";
 import { getUser } from "../functions/userFunctions.js";
 
 export const PostRouter = express.Router();
@@ -318,5 +318,202 @@ PostRouter.post("/post/:post_id/vote", requireAuth, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).send({ message: "Error saving vote." });
+  }
+});
+
+/**
+ * @openapi
+ * /post/{id}:
+ *   patch:
+ *     tags: [Post]
+ *     description: Edit a post's title, content or image. Only its author can edit it. Fields left out stay as they are.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: UUID of the post
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               post_title:
+ *                 type: string
+ *                 description: 1-50 characters. Trimmed.
+ *               post_content:
+ *                 type: string
+ *                 description: Must not be empty. Trimmed.
+ *               post_image_url:
+ *                 type: string
+ *                 nullable: true
+ *                 description: An http(s) URL of at most 255 characters. Empty string or null removes the image.
+ *     responses:
+ *       200:
+ *         description: Post updated.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 post:
+ *                   $ref: '#/components/schemas/Post'
+ *       400:
+ *         description: Invalid UUID, invalid fields, or nothing to change.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ *       401:
+ *         description: Missing or invalid token.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ *       403:
+ *         description: The post belongs to someone else.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ *       404:
+ *         description: Post not found.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ *       500:
+ *         description: Error updating post.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ */
+PostRouter.patch("/post/:id", requireAuth, async (req, res) => {
+  const id = req.params.id;
+  if (!validateUUID(id)) {
+    res.status(400).send({ message: "Invalid post UUID." });
+    return;
+  }
+  const changes = validatePostChanges(req.body);
+  if (typeof changes === "string") {
+    res.status(400).send({ message: changes });
+    return;
+  }
+  try {
+    const user = await getUser(res.locals.userId);
+    if (user === null) {
+      res.status(401).send({ message: "User no longer exists." });
+      return;
+    }
+    const post = await getPost(id);
+    if (post === null) {
+      res.status(404).send({ message: "Post not found." });
+      return;
+    }
+    if (post.post_author !== user.username) {
+      res.status(403).send({ message: "You can only edit your own posts." });
+      return;
+    }
+    const updated = await updatePost(id, changes);
+    if (updated === null) {
+      res.status(404).send({ message: "Post not found." });
+      return;
+    }
+    res.send({ message: "Post updated.", post: updated });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({ message: "Error updating post." });
+  }
+});
+
+/**
+ * @openapi
+ * /post/{id}:
+ *   delete:
+ *     tags: [Post]
+ *     description: Delete a post with its comments and votes. Its author and admins can delete it.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         description: UUID of the post
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Post deleted.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ *       400:
+ *         description: Invalid UUID.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ *       401:
+ *         description: Missing or invalid token.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ *       403:
+ *         description: The post belongs to someone else and you aren't an admin.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ *       404:
+ *         description: Post not found.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ *       500:
+ *         description: Error deleting post.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ */
+PostRouter.delete("/post/:id", requireAuth, async (req, res) => {
+  const id = req.params.id;
+  if (!validateUUID(id)) {
+    res.status(400).send({ message: "Invalid post UUID." });
+    return;
+  }
+  try {
+    const user = await getUser(res.locals.userId);
+    if (user === null) {
+      res.status(401).send({ message: "User no longer exists." });
+      return;
+    }
+    const post = await getPost(id);
+    if (post === null) {
+      res.status(404).send({ message: "Post not found." });
+      return;
+    }
+    if (post.post_author !== user.username && !(await isAdmin(res.locals.userId))) {
+      res.status(403).send({ message: "You can only delete your own posts." });
+      return;
+    }
+    await deletePost(id);
+    res.send({ message: "Post deleted." });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({ message: "Error deleting post." });
   }
 });

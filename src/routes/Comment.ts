@@ -1,6 +1,6 @@
 import express from "express";
-import { validateUUID } from "../util/validate.js";
-import { requireAuth } from "../functions/authFunctions.js";
+import { validateCommentContent, validateUUID } from "../util/validate.js";
+import { isAdmin, requireAuth } from "../functions/authFunctions.js";
 import { getUser } from "../functions/userFunctions.js";
 import {
   MAX_COMMENT_LENGTH,
@@ -8,6 +8,7 @@ import {
   deleteComment,
   getComment,
   getPostComments,
+  updateComment,
 } from "../functions/commentFunctions.js";
 
 export const CommentRouter = express.Router();
@@ -141,13 +142,12 @@ CommentRouter.get("/post/:post_id/comments", async (req, res) => {
  */
 CommentRouter.post("/post/:post_id/comments", requireAuth, async (req, res) => {
   const postId = req.params.post_id;
-  const rawContent = req.body?.comment_content;
-  const content = typeof rawContent === "string" ? rawContent.trim() : "";
+  const content = validateCommentContent(req.body?.comment_content, MAX_COMMENT_LENGTH);
   if (!validateUUID(postId)) {
     res.status(400).send({ message: "Invalid post UUID." });
     return;
   }
-  if (content.length === 0 || content.length > MAX_COMMENT_LENGTH) {
+  if (content === null) {
     res.status(400).send({ message: `comment_content must be 1 to ${MAX_COMMENT_LENGTH} characters.` });
     return;
   }
@@ -174,7 +174,7 @@ CommentRouter.post("/post/:post_id/comments", requireAuth, async (req, res) => {
  * /comment/{comment_id}:
  *   delete:
  *     tags: [Comment]
- *     description: Delete a comment. Only its author can delete it.
+ *     description: Delete a comment. Its author and admins can delete it.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -205,7 +205,7 @@ CommentRouter.post("/post/:post_id/comments", requireAuth, async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Message'
  *       403:
- *         description: The comment belongs to someone else.
+ *         description: The comment belongs to someone else and you aren't an admin.
  *         content:
  *           application/json:
  *             schema:
@@ -240,7 +240,7 @@ CommentRouter.delete("/comment/:comment_id", requireAuth, async (req, res) => {
       res.status(404).send({ message: "Comment not found." });
       return;
     }
-    if (comment.comment_author !== user.username) {
+    if (comment.comment_author !== user.username && !(await isAdmin(res.locals.userId))) {
       res.status(403).send({ message: "You can only delete your own comments." });
       return;
     }
@@ -249,5 +249,115 @@ CommentRouter.delete("/comment/:comment_id", requireAuth, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).send({ message: "Error deleting comment." });
+  }
+});
+
+/**
+ * @openapi
+ * /comment/{comment_id}:
+ *   patch:
+ *     tags: [Comment]
+ *     description: Edit a comment's text. Only its author can edit it. modified_at shows when it was last changed.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: comment_id
+ *         required: true
+ *         description: UUID of the comment
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [comment_content]
+ *             properties:
+ *               comment_content:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 255
+ *                 description: Trimmed before saving; must not be empty after trimming.
+ *     responses:
+ *       200:
+ *         description: Comment updated.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 comment:
+ *                   $ref: '#/components/schemas/Comment'
+ *       400:
+ *         description: Invalid UUID or comment_content.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ *       401:
+ *         description: Missing or invalid token.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ *       403:
+ *         description: The comment belongs to someone else.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ *       404:
+ *         description: Comment not found.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ *       500:
+ *         description: Error updating comment.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Message'
+ */
+CommentRouter.patch("/comment/:comment_id", requireAuth, async (req, res) => {
+  const commentId = req.params.comment_id;
+  const content = validateCommentContent(req.body?.comment_content, MAX_COMMENT_LENGTH);
+  if (!validateUUID(commentId)) {
+    res.status(400).send({ message: "Invalid comment UUID." });
+    return;
+  }
+  if (content === null) {
+    res.status(400).send({ message: `comment_content must be 1 to ${MAX_COMMENT_LENGTH} characters.` });
+    return;
+  }
+  try {
+    const user = await getUser(res.locals.userId);
+    if (user === null) {
+      res.status(401).send({ message: "User no longer exists." });
+      return;
+    }
+    const comment = await getComment(commentId);
+    if (comment === null) {
+      res.status(404).send({ message: "Comment not found." });
+      return;
+    }
+    if (comment.comment_author !== user.username) {
+      res.status(403).send({ message: "You can only edit your own comments." });
+      return;
+    }
+    const updated = await updateComment(commentId, content);
+    if (updated === null) {
+      res.status(404).send({ message: "Comment not found." });
+      return;
+    }
+    res.send({ message: "Comment updated.", comment: updated });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send({ message: "Error updating comment." });
   }
 });
