@@ -1,0 +1,41 @@
+# Builds the API, migrates a fresh MySQL and runs scripts/smoke-test.ts against it.
+name: Smoke test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: reader_test
+        ports: ["3306:3306"]
+        options: --health-cmd="mysqladmin ping -ppassword" --health-interval=5s --health-retries=20
+    env:
+      DB_HOST: 127.0.0.1
+      DB_NAME: reader_test
+      DB_USER: root
+      DB_PASSWORD: password
+      SECRET_KEY: ci-only-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm migrate
+      - run: |
+          pnpm start &
+          for i in $(seq 30); do curl -s localhost:10000 > /dev/null && break; sleep 1; done
+          pnpm smoke-test

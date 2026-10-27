@@ -15,6 +15,20 @@ export function validateCommentContent(content: unknown, maxLength: number): str
     return trimmed.length >= 1 && trimmed.length <= maxLength ? trimmed : null;
 }
 
+// Usernames and emails follow the same rules on sign-up and on edit. Both return the trimmed value, or null.
+export const USERNAME_RULE = "username must be 1 to 50 characters without spaces.";
+export const EMAIL_RULE = "email must be a valid email address.";
+
+export function validateUsername(value: unknown): string | null {
+    const username = typeof value === "string" ? value.trim() : "";
+    return /^\S{1,50}$/.test(username) ? username : null;
+}
+
+export function validateEmail(value: unknown): string | null {
+    const email = typeof value === "string" ? value.trim() : "";
+    return email.length <= 255 && /^[^\s@]+@[^\s@]+$/.test(email) ? email : null;
+}
+
 export function validateVote(vote: unknown): vote is -1 | 0 | 1 {
     return vote === -1 || vote === 0 || vote === 1;
 }
@@ -111,17 +125,15 @@ export function validateUserChanges(body: unknown): UserChanges | string {
     const changes: UserChanges = {};
 
     if (username !== undefined) {
-        if (typeof username !== "string" || !/^\S{1,50}$/.test(username.trim())) {
-            return "username must be 1 to 50 characters without spaces.";
-        }
-        changes.username = username.trim();
+        const valid = validateUsername(username);
+        if (valid === null) return USERNAME_RULE;
+        changes.username = valid;
     }
 
     if (email !== undefined) {
-        if (typeof email !== "string" || email.trim().length > 255 || !/^[^\s@]+@[^\s@]+$/.test(email.trim())) {
-            return "email must be a valid email address.";
-        }
-        changes.email = email.trim();
+        const valid = validateEmail(email);
+        if (valid === null) return EMAIL_RULE;
+        changes.email = valid;
     }
 
     if (password !== undefined) {

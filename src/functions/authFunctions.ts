@@ -41,11 +41,7 @@ export async function generateJWT(userId: string): Promise<string> {
         .sign(secret);
 }
 
-export async function verifyJWT(token: string): Promise<boolean> {
-    return (await decodeJWT(token)) !== null;
-}
-
-export async function decodeJWT(token: string): Promise<jose.JWTPayload | null> {
+async function decodeJWT(token: string): Promise<jose.JWTPayload | null> {
     try {
         const { payload } = await jose.jwtVerify(token, secret, { algorithms: ['HS256'] });
         return payload;
@@ -65,6 +61,25 @@ export async function requireAuth<P>(req: Request<P>, res: Response, next: NextF
         return;
     }
     res.locals.userId = payload.id;
+    next();
+}
+
+const ATTEMPT_LIMIT = 20;
+const attempts = new Map<string, number>();
+setInterval(() => attempts.clear(), 60_000).unref();
+
+// Slows down password guessing on login and sign-up: each IP gets ATTEMPT_LIMIT tries per route per minute.
+// shortcut: counts live in this process, so they reset on restart and aren't shared between machines.
+// Move them to a shared store (or Fly's proxy) if we run more than one machine.
+export function rateLimit(req: Request, res: Response, next: NextFunction) {
+    // Behind Fly's proxy req.ip is the proxy's address; Fly sends the real client's in this header.
+    const key = `${req.path} ${req.headers['fly-client-ip'] ?? req.ip}`;
+    const count = (attempts.get(key) ?? 0) + 1;
+    attempts.set(key, count);
+    if (count > ATTEMPT_LIMIT) {
+        res.status(429).send({ message: 'Too many attempts. Try again in a minute.' });
+        return;
+    }
     next();
 }
 

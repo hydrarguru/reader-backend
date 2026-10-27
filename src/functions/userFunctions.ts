@@ -1,4 +1,4 @@
-import { and, eq, ne, sql } from 'drizzle-orm'
+import { and, asc, eq, ne, sql } from 'drizzle-orm'
 import type { OmittedUser, User } from '../types/UserType.js'
 import { db } from '../db/database.js'
 import { comments, posts, users } from '../db/schema.js'
@@ -27,7 +27,15 @@ export async function createUser(newUser: User): Promise<CreateUserResult> {
         password: await hashPassword(newUser.password),
         email: newUser.email,
     };
-    await db.insert(users).values(user);
+    try {
+        await db.insert(users).values(user);
+    } catch (error) {
+        // Two sign-ups with the same name or email can both pass the checks above; the unique index stops the second.
+        if ((error as { cause?: { code?: string } }).cause?.code === 'ER_DUP_ENTRY') {
+            return { ok: false, reason: 'Username or email already exists.' };
+        }
+        throw error;
+    }
     console.log(`User created: ${user.username}`);
     return { ok: true, user: { user_id: user.user_id, username: user.username } };
 };
@@ -51,7 +59,7 @@ export async function getUser(userId: string): Promise<OmittedUser | null> {
 };
 
 export async function getAllUsers(): Promise<OmittedUser[]> {
-    return db.select(publicColumns).from(users).limit(100);
+    return db.select(publicColumns).from(users).orderBy(asc(users.username)).limit(100);
 };
 
 export type UserChanges = { username?: string, email?: string, password?: string };

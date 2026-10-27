@@ -134,12 +134,18 @@ CommunityRouter.post("/community/create", requireAuth, requireAdmin, async (req,
     res.status(400).send("Community description not provided.");
     return;
   }
+  // The same checks as editing a community, so a community can't be created with something an edit would reject.
+  const fields = validateCommunityChanges({ community_desc, community_image_url });
+  if (typeof fields === "string") {
+    res.status(400).send(fields);
+    return;
+  }
   // Only known fields are copied, so the request body can't set anything else.
   const newCommunity: Community = {
     community_id: community_id && validateUUID(community_id) ? community_id : crypto.randomUUID(),
     community_name: community_name,
-    community_desc: community_desc,
-    community_image_url: community_image_url,
+    community_desc: fields.community_desc!,
+    community_image_url: fields.community_image_url,
   };
   try {
     if (await createCommunity(newCommunity)) {
