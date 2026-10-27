@@ -17,8 +17,7 @@ export async function createCommunity(newCommunity: Community): Promise<boolean>
             community_desc: newCommunity.community_desc,
             community_image_url: newCommunity.community_image_url,
         });
-        console.log('Community created');
-        console.table(newCommunity);
+        console.log(`Community created: ${newCommunity.community_name}`);
         return true;
     }
 }
@@ -45,7 +44,7 @@ async function withRules(found: Community[]): Promise<Community[]> {
 }
 
 export async function getAllCommunities(): Promise<Community[]> {
-    return withRules(await db.select().from(communities).limit(100));
+    return withRules(await db.select().from(communities).orderBy(asc(communities.community_name)).limit(100));
 }
 
 export async function getCommunityBy(column: 'community_name' | 'community_id', value: string): Promise<Community | null> {

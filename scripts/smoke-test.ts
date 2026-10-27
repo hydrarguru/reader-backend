@@ -6,6 +6,7 @@
 // Uses DB_* and SERVER_PORT from .env. Set BASE_URL to test a different server.
 // Only runs against a local database and a local server, so it can't touch production.
 import { count, eq, inArray, sql } from "drizzle-orm";
+import { decodeJwt } from "jose";
 import { db } from "../src/db/database.js";
 import { admins, comments, communityRules, posts, postVotes, users } from "../src/db/schema.js";
 
@@ -94,6 +95,10 @@ async function main() {
   check("rejects a duplicate username (409)", duplicate.status === 409, duplicate);
   const missing = await call("POST", "/user/create", { body: { username: `x_${username}` } });
   check("rejects missing fields (400)", missing.status === 400, missing);
+  const spacedName = await call("POST", "/user/create", { body: { username: `x ${runId}`, password, email: `x_${username}@example.com` } });
+  check("rejects a username with spaces (400)", spacedName.status === 400, spacedName);
+  const badEmail = await call("POST", "/user/create", { body: { username: `x_${username}`, password, email: "not-an-email" } });
+  check("rejects an invalid email (400)", badEmail.status === 400, badEmail);
   const [stored] = await db.select({ password: users.password }).from(users).where(eq(users.username, username));
   check("password is stored hashed, not in plain text", !!stored && stored.password.startsWith("scrypt$") && stored.password !== password, stored?.password?.slice(0, 12));
 
@@ -107,8 +112,8 @@ async function main() {
   check("login returns the user's id", login.json?.user_id === userId, login.json);
   check("login says a new user is not an admin", login.json?.is_admin === false, login.json);
   const token: string = login.json?.token ?? "";
-  const decoded = await call("GET", `/auth/decode?token=${encodeURIComponent(token)}`);
-  check("token decodes to the user's id with an expiry", decoded.json?.id === userId && typeof decoded.json?.exp === "number", decoded.json);
+  const decoded = decodeJwt(token);
+  check("token decodes to the user's id with an expiry", decoded.id === userId && typeof decoded.exp === "number", decoded);
 
   console.log("\nProtected routes");
   const noToken = await call("POST", "/community/create", { body: { community_name: communityName, community_desc: "Smoke test" } });
@@ -120,6 +125,8 @@ async function main() {
   await db.insert(admins).values({ user_id: userId! });
   const adminLogin = await call("POST", "/auth/login", { body: { username, password } });
   check("login says an admin is an admin", adminLogin.json?.is_admin === true, adminLogin.json);
+  const badBanner = await call("POST", "/community/create", { body: { community_name: communityName, community_desc: "Smoke test", community_image_url: "javascript:alert(1)" }, token });
+  check("community create with a non-http banner URL is rejected (400)", badBanner.status === 400, badBanner);
   const community = await call("POST", "/community/create", { body: { community_name: communityName, community_desc: "Smoke test" }, token });
   check("community create by an admin succeeds (201)", community.status === 201, community);
   const fetchedCommunity = await call("GET", `/community/${communityName}`);
@@ -183,6 +190,12 @@ async function main() {
   await edit({ community_rules: rules });
 
   console.log("\nPosts and SQL injection");
+  const longTitle = await call("POST", "/post/create", { body: { community_id: communityId, post_title: "x".repeat(51), post_content: "x" }, token });
+  check("post create with a title over 50 characters is rejected (400)", longTitle.status === 400, longTitle);
+  const badImage = await call("POST", "/post/create", { body: { community_id: communityId, post_title: "x", post_content: "x", post_image_url: "javascript:alert(1)" }, token });
+  check("post create with a non-http image URL is rejected (400)", badImage.status === 400, badImage);
+  const badCommunity = await call("POST", "/post/create", { body: { community_id: "not-a-uuid", post_title: "x", post_content: "x" }, token });
+  check("post create with a bad community_id is rejected (400)", badCommunity.status === 400, badCommunity);
   const post = await call("POST", "/post/create", {
     body: { community_id: communityId, post_title: injectionTitle, post_content: "Body with 'quotes'", post_author: "someone_else" },
     token,
@@ -432,6 +445,14 @@ async function main() {
   check("the community's rules were deleted with it", Number(leftoverRules?.n) === 0, leftoverRules);
 
   await db.delete(users).where(inArray(users.username, [username, `smoke2_${runId}`, `smoke3_${runId}`, `smoke4_${runId}`]));
+
+  // Last, because it uses up this IP's login attempts for the next minute.
+  console.log("\nRate limit");
+  let limited = false;
+  for (let i = 0; i < 25 && !limited; i++) {
+    limited = (await call("POST", "/auth/login", { body: { username: `nobody_${runId}`, password } })).status === 429;
+  }
+  check("repeated logins from one IP are rate limited (429)", limited);
 
   console.log(`\n${passed} passed, ${failed} failed`);
 }

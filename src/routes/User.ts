@@ -1,8 +1,8 @@
 import express from "express";
-import { validateUserChanges, validateUUID } from "../util/validate.js";
+import { EMAIL_RULE, USERNAME_RULE, validateEmail, validateUserChanges, validateUsername, validateUUID } from "../util/validate.js";
 import type { User } from "../types/UserType.js";
 import { createUser, deleteUser, getAllUsers, getUser, updateUser, verifyUserPassword } from "../functions/userFunctions.js";
-import { isAdmin, requireAuth } from "../functions/authFunctions.js";
+import { isAdmin, rateLimit, requireAuth } from "../functions/authFunctions.js";
 export const UserRouter = express.Router();
 
 /**
@@ -24,13 +24,7 @@ export const UserRouter = express.Router();
  *         description: Error fetching users (plain text).
  */
 UserRouter.get("/user/all", async (req, res) => {
-  const users = await getAllUsers();
-  if (users === null) {
-    res.status(404).send("Error fetching users.");
-  }
-  else {
-    res.send(users);
-  }
+  res.send(await getAllUsers());
 });
 
 
@@ -131,17 +125,23 @@ UserRouter.get("/user/:id", async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Message'
  */
-UserRouter.post('/user/create', async (req, res) => {
+UserRouter.post('/user/create', rateLimit, async (req, res) => {
   const { username, password, email } = req.body ?? {};
   if ([username, password, email].some((field) => typeof field !== 'string' || field === '')) {
     res.status(400).send({ message: 'username, password and email are required.' });
     return;
   }
+  const validUsername = validateUsername(username);
+  const validEmail = validateEmail(email);
+  if (validUsername === null || validEmail === null) {
+    res.status(400).send({ message: validUsername === null ? USERNAME_RULE : EMAIL_RULE });
+    return;
+  }
   const newUser: User = {
     user_id: crypto.randomUUID(),
-    username: username,
+    username: validUsername,
     password: password,
-    email: email
+    email: validEmail
   };
   try {
     const result = await createUser(newUser);

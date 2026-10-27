@@ -182,7 +182,7 @@ PostRouter.get("/community/:community_id/post/all", async (req, res) => {
  *                 post:
  *                   $ref: '#/components/schemas/Post'
  *       400:
- *         description: Missing required fields.
+ *         description: Missing required fields, a title over 50 characters or an invalid image URL.
  *         content:
  *           application/json:
  *             schema:
@@ -201,9 +201,15 @@ PostRouter.get("/community/:community_id/post/all", async (req, res) => {
  *               $ref: '#/components/schemas/Message'
  */
 PostRouter.post("/post/create", requireAuth, async (req, res) => {
-  const { community_id, post_title, post_image_url, post_content } = req.body ?? {};
-  if (!community_id || !post_title || !post_content) {
+  const community_id = req.body?.community_id;
+  if (typeof community_id !== "string" || !validateUUID(community_id) || !req.body?.post_title || !req.body?.post_content) {
     res.status(400).send({ message: "community_id, post_title and post_content are required." });
+    return;
+  }
+  // The same checks as editing a post, so a post can't be created with something an edit would reject.
+  const fields = validatePostChanges(req.body);
+  if (typeof fields === "string") {
+    res.status(400).send({ message: fields });
     return;
   }
   try {
@@ -216,9 +222,9 @@ PostRouter.post("/post/create", requireAuth, async (req, res) => {
       post_id: crypto.randomUUID(),
       community_id: community_id,
       post_author: author.username,
-      post_title: post_title,
-      post_image_url: post_image_url,
-      post_content: post_content,
+      post_title: fields.post_title!,
+      post_image_url: fields.post_image_url,
+      post_content: fields.post_content!,
       post_score: 0,
     };
     await createPost(newPost);

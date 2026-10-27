@@ -56,18 +56,6 @@ export const swaggerDef = {
             },
           },
         },
-        TokenPayload: {
-          type: "object",
-          properties: {
-            id: {
-              type: "string",
-              format: "uuid",
-              description: "ID of the user the token was issued to.",
-            },
-            iat: { type: "integer", description: "Issued at (Unix seconds)." },
-            exp: { type: "integer", description: "Expires at (Unix seconds)." },
-          },
-        },
         PublicUser: {
           type: "object",
           description: "A user without email, password or timestamps.",

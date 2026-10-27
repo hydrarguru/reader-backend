@@ -1,6 +1,6 @@
 import type { Post } from '../types/PostType.js'
 import type { PostVote } from '../types/PostVoteType.js'
-import { and, eq, getTableColumns, sql } from 'drizzle-orm'
+import { and, desc, eq, getTableColumns, sql } from 'drizzle-orm'
 import { db } from '../db/database.js'
 import { posts, postVotes } from '../db/schema.js'
 
@@ -15,7 +15,7 @@ function selectPostsWithCommentCount() {
 
 export async function getPosts(communityId?: string): Promise<Post[]> {
     const where = communityId === undefined ? undefined : eq(posts.community_id, communityId);
-    return selectPostsWithCommentCount().where(where).limit(100);
+    return selectPostsWithCommentCount().where(where).orderBy(desc(posts.created_at), desc(posts.post_id)).limit(100);
 }
 
 export async function getPost(postId: string): Promise<Post | null> {
@@ -38,8 +38,7 @@ export async function createPost(newPost: Post) {
         post_content: newPost.post_content,
         post_score: newPost.post_score,
     });
-    console.log('Post created');
-    console.table(newPost);
+    console.log(`Post created: ${newPost.post_id}`);
 }
 
 export async function deletePost(postId: string): Promise<void> {
@@ -94,9 +93,6 @@ export type PostChanges = {
 // Applies the given changes; fields left out stay as they are.
 // Returns the updated post, or null if it doesn't exist.
 export async function updatePost(postId: string, changes: PostChanges): Promise<Post | null> {
-    if (!(await postExists(postId))) {
-        return null;
-    }
     // Drizzle leaves undefined fields out of the SET clause.
     await db.update(posts).set(changes).where(eq(posts.post_id, postId));
     console.log('Post edited');

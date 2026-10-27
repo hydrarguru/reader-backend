@@ -3,6 +3,20 @@
 All notable changes to this project. Follows [Semantic Versioning](https://semver.org/).
 Versions before 1.12.2 were assigned retroactively from the commit history.
 
+## [2.0.0] - 2026-10-27
+### Fixed
+- `POST /post/create` now validates its fields like `PATCH /post/{id}`: a title over 50 characters or an invalid image URL gets a 400 instead of a 500, and the title and text are trimmed.
+- `POST /post/create` rejects a `community_id` that isn't a UUID (400).
+- `POST /community/create` checks the description and banner URL like `PATCH /community/{id}`.
+- `POST /user/create` checks the username and email like `PATCH /user/{id}`, and two sign-ups racing for the same name get a 409 instead of a 500.
+- Post, community and user lists have a fixed order (posts newest first, the rest by name), so posts no longer drop out of the first 100 at random.
+### Changed
+- `POST /auth/login` and `POST /user/create` allow 20 attempts per IP per minute, then answer 429.
+- The Docker build installs exactly what `pnpm-lock.yaml` pins.
+- The smoke test runs on every push to main and every pull request.
+### Removed
+- **Breaking:** `GET /auth/verify` and `GET /auth/decode`. They took the token in the URL, where it ends up in logs, and the frontend doesn't use them.
+
 ## [1.13.0] - 2026-10-18
 ### Added
 - `PATCH /user/{id}`: change your own username, email or password (the password needs `current_password`).
