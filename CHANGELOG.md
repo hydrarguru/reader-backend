@@ -3,6 +3,10 @@
 All notable changes to this project. Follows [Semantic Versioning](https://semver.org/).
 Versions before 1.12.2 were assigned retroactively from the commit history.
 
+## [2.0.1] - 2026-11-02
+### Fixed
+- Renaming a user who has posts or comments no longer fails with a 500 on databases created before #11. Migration `0002_cascade_author_renames.sql` replaces the old author foreign keys, which had no `ON UPDATE CASCADE`, with one per column that cascades.
+
 ## [2.0.0] - 2026-10-27
 ### Fixed
 - `POST /post/create` now validates its fields like `PATCH /post/{id}`: a title over 50 characters or an invalid image URL gets a 400 instead of a 500, and the title and text are trimmed.
